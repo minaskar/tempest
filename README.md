@@ -1,0 +1,102 @@
+![logo](logo.png)
+
+**Tempest is a Python implementation of the Persistent Sampling method for accelerated Bayesian inference**
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/minaskar/tempest/blob/master/LICENSE)
+[![Documentation Status](https://readthedocs.org/projects/tempest/badge/?version=latest)](https://tempest.readthedocs.io/en/latest/?badge=latest)
+
+
+# Getting started
+
+## Brief introduction
+
+``Tempest`` is a Python package for fast Bayesian posterior and model evidence estimation. It leverages 
+the Persistent Sampling (PS) algorithm, offering significant speed improvements over 
+traditional methods like MCMC and Nested Sampling. Ideal for large-scale scientific problems 
+with expensive likelihood evaluations, non-linear correlations, and multimodality, ``Tempest`` 
+provides efficient and scalable posterior sampling and model evidence estimation. Widely used 
+in cosmology and astronomy, ``Tempest`` is user-friendly, flexible, and actively maintained.
+
+## Documentation
+
+Read the docs at [tempest.readthedocs.io](https://tempest.readthedocs.io) for more information, examples and tutorials.
+
+## Installation
+
+To install ``tempest`` using ``pip`` run:
+
+```bash
+pip install tempest
+```
+
+or, to install from source:
+
+```bash
+git clone https://github.com/minaskar/tempest.git
+cd tempest
+python setup.py install
+```
+
+## Basic example
+
+For instance, if you wanted to draw samples from a 10-dimensional Rosenbrock distribution with a uniform prior, you would do something like:
+
+```python
+import tempest as pc
+import numpy as np
+
+n_dim = 10  # Number of dimensions
+
+# Define prior transform: U(-10, 10) for each dimension
+def prior_transform(u):
+    return 20 * u - 10
+
+# Define log-likelihood
+def log_likelihood(x):
+    return -np.sum(10.0*(x[:,::2]**2.0 - x[:,1::2])**2.0 \
+            + (x[:,::2] - 1.0)**2.0, axis=1)
+
+# Create and run sampler
+sampler = pc.Sampler(
+    prior_transform=prior_transform,
+    log_likelihood=log_likelihood,
+    n_dim=n_dim,
+    vectorize=True,
+)
+sampler.run()
+
+samples, weights, logl = sampler.posterior() # Weighted posterior samples
+
+logz, logz_err = sampler.evidence() # Bayesian model evidence estimate and uncertainty
+```
+
+
+# Attribution & Citation
+
+Please cite the following papers if you found this code useful in your research:
+
+```bash
+@article{karamanis2022accelerating,
+    title={Accelerating astronomical and cosmological inference with preconditioned Monte Carlo},
+    author={Karamanis, Minas and Beutler, Florian and Peacock, John A and Nabergoj, David and Seljak, Uro{\v{s}}},
+    journal={Monthly Notices of the Royal Astronomical Society},
+    volume={516},
+    number={2},
+    pages={1644--1653},
+    year={2022},
+    publisher={Oxford University Press}
+}
+
+@article{karamanis2022pocomc,
+    title={pocoMC: A Python package for accelerated Bayesian inference in astronomy and cosmology},
+    author={Karamanis, Minas and Nabergoj, David and Beutler, Florian and Peacock, John A and Seljak, Uros},
+    journal={arXiv preprint arXiv:2207.05660},
+    year={2022}
+}
+```
+
+# Licence
+
+Copyright 2022-Now Minas Karamanis and contributors.
+
+``Tempest`` is free software made available under the GPL-3.0 License. For details see the `LICENSE` file.

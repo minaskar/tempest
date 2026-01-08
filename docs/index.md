@@ -1,0 +1,145 @@
+# Tempest
+
+![Tempest Logo](assets/logo.png){ width="400" }
+
+**Tempest** is a Python implementation of the **Persistent Sampling** method for accelerated Bayesian inference.
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/minaskar/tempest/blob/master/LICENSE)
+[![Documentation Status](https://readthedocs.org/projects/tempest/badge/?version=latest)](https://tempest.readthedocs.io/en/latest/?badge=latest)
+[![PyPI version](https://badge.fury.io/py/tempest.svg)](https://badge.fury.io/py/tempest)
+
+---
+
+## What is Tempest?
+
+Tempest is a Python package for fast Bayesian posterior and model evidence estimation. It leverages the **Persistent Sampling (PS)** algorithm, offering significant speed improvements over traditional methods like MCMC and Nested Sampling.
+
+### Key Features
+
+- **Fast Posterior Sampling**: Accelerated Bayesian inference using persistent proposals
+- **Evidence Estimation**: Reliable estimation of the Bayesian model evidence (marginal likelihood)
+- **Multimodal Support**: Effective handling of multimodal distributions with hierarchical clustering
+- **Parallelization**: Support for multiprocessing and MPI for large-scale problems
+- **Flexible Priors**: Easy-to-use prior distribution specification
+- **Robust MCMC**: Uses t-preconditioned Crank-Nicolson for efficient parameter space exploration
+
+### When to Use Tempest
+
+Tempest is ideal for:
+
+- Large-scale scientific problems with expensive likelihood evaluations
+- Problems with non-linear correlations between parameters
+- Multimodal posterior distributions
+- Applications in cosmology, astronomy, and other scientific domains
+
+---
+
+## Quick Example
+
+Here's a simple example showing how to sample from a 10-dimensional Rosenbrock distribution:
+
+```python
+import tempest as pc
+import numpy as np
+from scipy.stats import uniform
+
+n_dim = 10  # Number of dimensions
+
+# Define the prior transform: U(-10, 10) for each dimension
+def prior_transform(u):
+    return 20 * u - 10  # Transform [0,1] to [-10, 10]
+
+# Define the log-likelihood function
+def log_likelihood(x):
+    return -np.sum(10.0 * (x[:, ::2]**2.0 - x[:, 1::2])**2.0 
+                   + (x[:, ::2] - 1.0)**2.0, axis=1)
+
+# Create the sampler
+sampler = pc.Sampler(
+    prior_transform=prior_transform,
+    log_likelihood=log_likelihood,
+    n_dim=n_dim,
+    vectorize=True,
+)
+
+# Run the sampler
+sampler.run()
+
+# Get weighted posterior samples
+samples, weights, logl, logp = sampler.posterior()
+
+# Get Bayesian evidence estimate
+logz, logz_err = sampler.evidence()
+```
+
+---
+
+## Installation
+
+Install Tempest using pip:
+
+```bash
+pip install tempest
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/minaskar/tempest.git
+cd tempest
+pip install .
+```
+
+See the [Installation Guide](installation.md) for more details.
+
+---
+
+## Documentation Contents
+
+<div class="grid cards" markdown>
+
+-   :material-rocket-launch:{ .lg .middle } **Getting Started**
+
+    ---
+
+    Learn how to install Tempest and run your first sampling job
+
+    [:octicons-arrow-right-24: Quick Start](quickstart.md)
+
+-   :material-book-open-variant:{ .lg .middle } **User Guide**
+
+    ---
+
+    Comprehensive guide covering all features and use cases
+
+    [:octicons-arrow-right-24: User Guide](user_guide/basic_usage.md)
+
+-   :material-code-tags:{ .lg .middle } **API Reference**
+
+    ---
+
+    Complete API documentation for all modules
+
+    [:octicons-arrow-right-24: API Reference](api/sampler.md)
+
+-   :material-lightbulb:{ .lg .middle } **Examples**
+
+    ---
+
+    Practical examples and tutorials
+
+    [:octicons-arrow-right-24: Examples](examples/rosenbrock.md)
+
+</div>
+
+---
+
+## License
+
+Tempest is free software made available under the GPL-3.0 License. For details see the [LICENSE](https://github.com/minaskar/tempest/blob/master/LICENCE) file.
+
+---
+
+## Acknowledgements
+
+If you use Tempest in your research, please cite the relevant papers. See the [Citation](citation.md) page for details.
