@@ -1,6 +1,5 @@
 import numpy as np
 import math
-import torch
 from tqdm import tqdm
 import warnings
 
