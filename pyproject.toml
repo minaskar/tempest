@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tempest"
+version = "1.0.0"
+authors = [
+    {name = "Minas Karamanis", email = "minaskar@gmail.com"},
+]
+description = "Persistent Sampling"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "GPLv3"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "tqdm>=4.60.0",
+    "scipy>=1.4.0",
+    "dill>=0.3.8",
+    "multiprocess>=0.70.15",
+]
+
+[project.urls]
+Homepage = "https://github.com/minaskar/tempest"
+
+[tool.setuptools]
+packages = ["tempest"]
+zip-safe = false
+include-package-data = true

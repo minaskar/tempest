@@ -7,8 +7,6 @@ This guide covers different methods to install Tempest.
 Tempest requires Python 3.8 or later and depends on the following packages:
 
 - `numpy >= 1.20.0`
-- `torch >= 1.12.0`
-- `zuko >= 1.1.0`
 - `tqdm >= 4.60.0`
 - `scipy >= 1.4.0`
 - `dill >= 0.3.8`
