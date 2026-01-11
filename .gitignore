@@ -21,3 +21,6 @@ states/
 .vscode/
 .ipynb_checkpoints/
 tests/__pycache__/
+.venv/
+.ruff_cache/
+AGENTS.md
