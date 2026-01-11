@@ -9,7 +9,7 @@ The `Sampler` class is the main interface to Tempest. It manages the entire samp
 ### Creating a Sampler
 
 ```python
-import tempest as pc
+import tempest as tp
 import numpy as np
 
 # Define prior and likelihood
@@ -23,7 +23,7 @@ def log_likelihood(x):
     return -0.5 * np.sum(x**2)
 
 # Create sampler with default settings
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -36,7 +36,7 @@ sampler = pc.Sampler(
 |-----------|---------|-------------|
 | `n_effective` | 512 | Number of effective particles |
 | `n_active` | 256 | Number of active particles per iteration |
-| `n_boost` | 1 | Boost factor for particle count increase |
+| `n_boost` | `None` | Target number of effective particles to boost towards (absolute value, not a multiplier) |
 | `vectorize` | False | Whether likelihood accepts batched inputs |
 | `pool` | None | Process pool for parallelization |
 
@@ -127,7 +127,7 @@ def log_likelihood_with_blobs(x):
     # Return tuple: (logl, blob1, blob2, ...)
     return logl, chi2
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_with_blobs,
     n_dim=n_dim,
@@ -150,7 +150,7 @@ chi2_values = blobs  # Your stored quantities
 ### MCMC Sampler Type
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -162,7 +162,7 @@ sampler = pc.Sampler(
 ### MCMC Steps
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -182,7 +182,7 @@ For parameters with special boundaries:
 Useful for phase-like parameters:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -195,7 +195,7 @@ sampler = pc.Sampler(
 Useful for ratio parameters where a/b ≡ b/a:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -210,7 +210,7 @@ sampler = pc.Sampler(
 Control how the sampler determines temperature steps:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -228,7 +228,7 @@ The `'uss'` metric can be more robust for multimodal distributions.
 Enable hierarchical clustering for multimodal distributions:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -241,7 +241,7 @@ sampler = pc.Sampler(
 Disable clustering for unimodal targets:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -256,7 +256,7 @@ sampler = pc.Sampler(
 Control where results are saved:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -274,7 +274,7 @@ State files will be saved as `my_results/analysis_1_*.state`.
 Set a random seed for reproducible results:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -288,7 +288,7 @@ sampler = pc.Sampler(
 
 ```python
 import numpy as np
-import tempest as pc
+import tempest as tp
 
 n_dim = 10
 
@@ -299,12 +299,12 @@ def log_likelihood(x):
     return -0.5 * np.sum(x**2)
 
 # Configure everything
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_effective=1024,
     n_active=512,
-    n_boost=2,
+    n_boost=2048,
     vectorize=False,
     sample='tpcn',
     n_steps=n_dim,

@@ -20,7 +20,7 @@ Multimodal distributions are challenging because samplers can get stuck in a sin
 
 ```python
 import numpy as np
-import tempest as pc
+import tempest as tp
 from scipy.stats import multivariate_normal
 import matplotlib.pyplot as plt
 
@@ -59,7 +59,7 @@ def log_likelihood(x):
     return result.squeeze() if result.size == 1 else result
 
 # Create sampler with clustering enabled
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -139,7 +139,7 @@ A more challenging example with 5 modes:
 
 ```python
 import numpy as np
-import tempest as pc
+import tempest as tp
 from scipy.stats import uniform, multivariate_normal
 
 n_dim = 2
@@ -168,7 +168,7 @@ def log_likelihood(x):
     return np.logaddexp.reduce(log_probs, axis=0).squeeze()
 
 # Need more particles for more modes
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -223,14 +223,14 @@ def log_likelihood(x):
     log_probs = np.array(log_probs)
     return np.logaddexp.reduce(log_probs, axis=0).squeeze()
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
     n_effective=2048,
     n_active=512,
     clustering=True,
-    n_boost=2,
+    n_boost=1024,
 )
 
 sampler.run(n_total=8192)
@@ -243,7 +243,7 @@ sampler.run(n_total=8192)
 !!! success "Key Settings"
     - **Always enable clustering** (`clustering=True`)
     - Increase `n_effective` with number of modes
-    - Use `n_boost > 1` to add particles as modes are discovered
+    - Use `n_boost > n_effective` to add particles as modes are discovered
 
 !!! tip "Mode Discovery"
     - Wide priors help discover all modes

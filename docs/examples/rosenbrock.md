@@ -18,7 +18,7 @@ This creates a narrow, curved valley that is difficult to sample from. The minim
 
 ```python
 import numpy as np
-import tempest as pc
+import tempest as tp
 from scipy.stats import uniform
 import matplotlib.pyplot as plt
 
@@ -56,7 +56,7 @@ def log_likelihood(x):
     return result.squeeze() if result.size == 1 else result
 
 # Create sampler
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -125,7 +125,7 @@ for n_dim in [2, 10, 20, 50]:
     def prior_transform(u):
         return 20 * u - 10
     
-    sampler = pc.Sampler(
+    sampler = tp.Sampler(
         prior_transform=prior_transform,
         log_likelihood=log_likelihood,
         n_dim=n_dim,
@@ -164,7 +164,7 @@ def prior_transform(u):
     return 20 * u - 10
 
 with Pool(4) as pool:
-    sampler = pc.Sampler(
+    sampler = tp.Sampler(
         prior_transform=prior_transform,
         log_likelihood=log_likelihood_serial,
         n_dim=n_dim,

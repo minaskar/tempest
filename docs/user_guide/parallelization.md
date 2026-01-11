@@ -19,7 +19,7 @@ Use Python's multiprocessing to parallelize likelihood evaluations across CPU co
 ### Basic Usage
 
 ```python
-import tempest as pc
+import tempest as tp
 import numpy as np
 
 n_dim = 10
@@ -30,7 +30,7 @@ def prior_transform(u):
 def log_likelihood(x):
     return -0.5 * np.sum(x**2)
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -48,7 +48,7 @@ For more control, create a pool explicitly:
 from multiprocess import Pool
 
 with Pool(8) as pool:
-    sampler = pc.Sampler(
+    sampler = tp.Sampler(
         prior_transform=prior_transform,
         log_likelihood=log_likelihood,
         n_dim=n_dim,
@@ -67,7 +67,7 @@ with Pool(8) as pool:
 
 ```python
 # ❌ Won't work - lambda not picklable
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior=prior,
     likelihood=lambda x: -0.5 * np.sum(x**2),
     pool=4,
@@ -77,7 +77,7 @@ sampler = pc.Sampler(
 def log_likelihood(x):
     return -0.5 * np.sum(x**2)
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -96,7 +96,7 @@ import os
 n_cores = os.cpu_count() // 2  # Physical cores
 n_active = n_cores * 32  # 32 particles per core
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -122,14 +122,14 @@ pip install mpi4py
 ### Using MPIPool
 
 ```python
-import tempest as pc
+import tempest as tp
 from tempest import MPIPool
 
 # Create MPI pool
 pool = MPIPool()
 
 if pool.is_master():
-    sampler = pc.Sampler(
+    sampler = tp.Sampler(
         prior_transform=prior_transform,
         log_likelihood=log_likelihood,
         n_dim=n_dim,
@@ -151,7 +151,7 @@ mpiexec -n 8 python my_script.py
 ```python
 # mpi_example.py
 import numpy as np
-import tempest as pc
+import tempest as tp
 from tempest import MPIPool
 
 def log_likelihood(x):
@@ -168,7 +168,7 @@ pool = MPIPool()
 
 if pool.is_master():
     # Only master process runs the sampler
-    sampler = pc.Sampler(
+    sampler = tp.Sampler(
         prior_transform=prior_transform,
         log_likelihood=log_likelihood,
         n_dim=n_dim,
@@ -229,7 +229,7 @@ def log_likelihood_vectorized(x):
     """
     return -0.5 * np.sum(x**2, axis=1)
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_vectorized,
     n_dim=n_dim,
@@ -252,7 +252,7 @@ def log_likelihood(x):
     """Wrapper to convert to numpy."""
     return np.array(log_likelihood_jax(jnp.array(x)))
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -280,7 +280,7 @@ def log_likelihood_batch(x):
     """Process a batch on one core."""
     return -0.5 * np.sum(x**2, axis=1)
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_batch,
     n_dim=n_dim,
@@ -324,7 +324,7 @@ def log_likelihood_timed(x):
 n_processes = 8
 n_active = 32 * n_processes  # 256 particles
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,

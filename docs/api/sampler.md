@@ -37,7 +37,7 @@ The sampler manages the entire PS workflow:
 ### Creating a Sampler
 
 ```python
-import tempest as pc
+import tempest as tp
 import numpy as np
 
 n_dim = 5
@@ -48,7 +48,7 @@ def prior_transform(u):
 def log_likelihood(x):
     return -0.5 * np.sum(x**2)
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -101,7 +101,7 @@ results = sampler.results
 
 ```python
 import numpy as np
-import tempest as pc
+import tempest as tp
 
 n_dim = 5
 
@@ -111,7 +111,7 @@ def prior_transform(u):
 def log_likelihood(x):
     return -0.5 * np.sum(x**2)
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -124,7 +124,7 @@ samples, weights, logl = sampler.posterior()
 ### With Parallelization
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -136,7 +136,7 @@ sampler = pc.Sampler(
 ### Resuming from Checkpoint
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,

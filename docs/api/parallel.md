@@ -48,7 +48,7 @@ You also need an MPI implementation installed on your system:
 
 ```python
 import numpy as np
-import tempest as pc
+import tempest as tp
 from tempest import MPIPool
 
 def log_likelihood(x):
@@ -64,7 +64,7 @@ def prior_transform(u):
 pool = MPIPool()
 
 if pool.is_master():
-    sampler = pc.Sampler(
+    sampler = tp.Sampler(
         prior_transform=prior_transform,
         log_likelihood=log_likelihood,
         n_dim=n_dim,
@@ -119,7 +119,7 @@ pool = MPIPool()
 
 if pool.is_master():
     # Only the master runs the sampler
-    sampler = pc.Sampler(
+    sampler = tp.Sampler(
         prior_transform=prior_transform,
         log_likelihood=log_likelihood,
         n_dim=n_dim,
@@ -176,7 +176,7 @@ Set `n_active` as a multiple of the number of workers:
 n_workers = pool.size  # Number of worker processes
 n_active = 32 * n_workers
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -199,7 +199,7 @@ Wrap your code to handle MPI errors gracefully:
 try:
     pool = MPIPool()
     if pool.is_master():
-        sampler = pc.Sampler(
+        sampler = tp.Sampler(
             prior_transform=prior_transform,
             log_likelihood=log_likelihood,
             n_dim=n_dim,

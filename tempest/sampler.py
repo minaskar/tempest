@@ -7,10 +7,18 @@ import numpy as np
 from multiprocess import Pool
 
 from .mcmc import parallel_mcmc
-from .tools import systematic_resample, FunctionWrapper, trim_weights, ProgressBar, effective_sample_size, unique_sample_size
+from .tools import (
+    systematic_resample,
+    FunctionWrapper,
+    trim_weights,
+    ProgressBar,
+    effective_sample_size,
+    unique_sample_size,
+)
 from .particles import Particles
 from .cluster import HierarchicalGaussianMixture
 from .student import fit_mvstud
+
 
 class Sampler:
     r"""Persistent Sampling class.
@@ -35,10 +43,11 @@ class Sampler:
         This is the number of particles that are evolved using MCMC at each iteration. If a pool is provided,
         the number of active particles should be a multiple of the number of processes in the pool to ensure
         efficient parallelisation. If ``n_active=None``, the default value is ``n_active=n_effective//2``.
-    n_boost : int
-        Boost factor for dynamically increasing the number of particles as the sampler approaches the posterior
-        (default is ``n_boost=1``). When greater than 1, the number of effective and active particles will
-        gradually increase based on the posterior ESS, improving sampling efficiency in the later stages.
+    n_boost : int or ``None``
+        Target number of effective particles to boost towards as the sampler approaches the posterior
+        (default is ``n_boost=None``). When provided and greater than ``n_effective``, the number of effective
+        and active particles will gradually increase from their initial values to ``n_boost`` based on the posterior
+        ESS, improving sampling efficiency in the later stages. If ``n_boost == n_effective``, no boosting occurs.
     log_likelihood_args : list
         Extra arguments to be passed to log_likelihood (default is ``log_likelihood_args=None``). Example:
         ``log_likelihood_args=[data]``.
@@ -56,7 +65,7 @@ class Sampler:
         is not provided, the data type is inferred from the blobs returned by the likelihood function. If the blobs
         are not of the same data type, they are converted to an object array. If the blobs are strings, the data type
         is set to ``object``. If the blobs ``dtype`` is known in advance, it can be provided as a list of data types
-        (e.g., ``blobs_dtype=[("blob_1", float), ("blob_2", int)]``). Blobs can be used to store additional data 
+        (e.g., ``blobs_dtype=[("blob_1", float), ("blob_2", int)]``). Blobs can be used to store additional data
         returned by the likelihood function (e.g., chi-squared values, residuals, etc.). Blobs are stored as a
         structured array with named fields when the data type is provided. Currently, the blobs feature is not
         compatible with vectorized likelihood calculations.
@@ -70,11 +79,11 @@ class Sampler:
         ``reflective=[0,1]`` will reflect the first and second parameters.
     pool : pool or int
         Number of processes to use for parallelisation (default is ``pool=None``). If ``pool`` is an integer
-        greater than 1, a ``multiprocessing`` pool is created with the specified number of processes (e.g., ``pool=8``). 
+        greater than 1, a ``multiprocessing`` pool is created with the specified number of processes (e.g., ``pool=8``).
         If ``pool`` is an instance of ``mpi4py.futures.MPIPoolExecutor``, the code runs in parallel using MPI.
-        If a pool is provided, the number of active particles should be a multiple of the number of processes in 
-        the pool to ensure efficient parallelisation. If ``pool=None``, the code runs in serial mode. When a pool 
-        is provided, please ensure that the likelihood function is picklable. 
+        If a pool is provided, the number of active particles should be a multiple of the number of processes in
+        the pool to ensure efficient parallelisation. If ``pool=None``, the code runs in serial mode. When a pool
+        is provided, please ensure that the likelihood function is picklable.
     train_frequency : int or None
         Frequency of training the normalizing flow (default is ``train_frequency=None``).
         If ``train_frequency=None``, the normalizing flow is trained every ``n_effective//n_active``
@@ -133,37 +142,37 @@ class Sampler:
         Initial random seed.
     """
 
-    def __init__(self,
-                 prior_transform: callable,
-                 log_likelihood: callable,
-                 n_dim: int,
-                 n_effective: int = 512,
-                 n_active: int = 256,
-                 n_boost: int = 1,
-                 log_likelihood_args: Optional[list] = None,
-                 log_likelihood_kwargs: Optional[dict] = None,
-                 vectorize: bool = False,
-                 blobs_dtype: Optional[str] = None,
-                 periodic: Optional[list] = None,
-                 reflective: Optional[list] = None,
-                 dynamic: bool = True,
-                 pool: Optional[Union[int, Pool]] = None,
-                 clustering: bool = True,
-                 normalize: bool = True,
-                 cluster_every: int = 1,
-                 split_threshold: float = 1.0,
-                 n_max_clusters: Optional[int] = None,
-                 metric: str = 'ess',
-                 n_prior: Optional[int] = None,
-                 sample: str = 'tpcn',
-                 n_steps: Optional[int] = None,
-                 n_max_steps: Optional[int] = None,
-                 resample: str = 'mult',
-                 output_dir: Optional[str] = None,
-                 output_label: Optional[str] = None,
-                 random_state: Optional[int] = None,
-                 ):
-        
+    def __init__(
+        self,
+        prior_transform: callable,
+        log_likelihood: callable,
+        n_dim: int,
+        n_effective: int = 512,
+        n_active: int = 256,
+        n_boost: int = None,
+        log_likelihood_args: Optional[list] = None,
+        log_likelihood_kwargs: Optional[dict] = None,
+        vectorize: bool = False,
+        blobs_dtype: Optional[str] = None,
+        periodic: Optional[list] = None,
+        reflective: Optional[list] = None,
+        dynamic: bool = True,
+        pool: Optional[Union[int, Pool]] = None,
+        clustering: bool = True,
+        normalize: bool = True,
+        cluster_every: int = 1,
+        split_threshold: float = 1.0,
+        n_max_clusters: Optional[int] = None,
+        metric: str = "ess",
+        n_prior: Optional[int] = None,
+        sample: str = "tpcn",
+        n_steps: Optional[int] = None,
+        n_max_steps: Optional[int] = None,
+        resample: str = "mult",
+        output_dir: Optional[str] = None,
+        output_label: Optional[str] = None,
+        random_state: Optional[int] = None,
+    ):
         # Constants
         self.BETA_TOLERANCE = 1e-4  # Tolerance for beta termination check
         self.ESS_TOLERANCE = 0.01  # Relative tolerance for ESS in beta bisection
@@ -173,7 +182,7 @@ class Sampler:
         self.TRIM_ESS = 0.99  # ESS threshold for trimming importance weights
         self.TRIM_BINS = 1000  # Number of bins for weight trimming
         self.BOOST_STEEPNESS = 0.125  # Steepness of the transition for n_active boost
-        
+
         # Random seed
         if random_state is not None:
             np.random.seed(random_state)
@@ -184,9 +193,7 @@ class Sampler:
 
         # Log likelihood function
         self.log_likelihood = FunctionWrapper(
-            log_likelihood,
-            log_likelihood_args,
-            log_likelihood_kwargs
+            log_likelihood, log_likelihood_args, log_likelihood_kwargs
         )
 
         # Blobs data type
@@ -202,31 +209,37 @@ class Sampler:
 
         # Check that at least one parameter is provided
         if n_active is None and n_effective is None:
-            raise ValueError("At least one of n_active or n_effective must be provided.")
+            raise ValueError(
+                "At least one of n_active or n_effective must be provided."
+            )
 
         # Number of active particles
         if n_active is None:
-            self.n_active = int(n_effective/2)
+            self.n_active = int(n_effective / 2)
         else:
             self.n_active = int(n_active)
         self.n_active_init = self.n_active
 
         # Effective Sample Size
         if n_effective is None:
-            self.n_effective = int(2*n_active)
+            self.n_effective = int(2 * n_active)
         else:
             self.n_effective = int(n_effective)
         self.n_effective_init = self.n_effective
 
         # Boost factor
         if n_boost is None:
-            self.n_boost = 1
+            self.n_boost = None
         else:
-            self.n_boost = int(abs(n_boost))
+            self.n_boost = int(n_boost)
+            if self.n_boost < self.n_effective:
+                raise ValueError(
+                    f"n_boost ({self.n_boost}) must be >= n_effective ({self.n_effective})"
+                )
 
         # Number of MCMC steps after logP plateau
         if n_steps is None:
-            self.n_steps = int(self.n_dim//2)
+            self.n_steps = int(self.n_dim // 2)
         else:
             self.n_steps = int(n_steps)
 
@@ -268,17 +281,20 @@ class Sampler:
             self.output_label = output_label
 
         # Effective vs Unique Sample Size
-        if metric not in ['ess', 'uss']:
+        if metric not in ["ess", "uss"]:
             raise ValueError(f"Invalid metric {metric}. Options are 'ess' or 'uss'.")
         else:
             self.metric = metric
 
         # Dynamic ESS
         self.dynamic = dynamic
-        self.dynamic_ratio = unique_sample_size(np.ones(self.n_effective), k=self.n_active) / self.n_active
+        self.dynamic_ratio = (
+            unique_sample_size(np.ones(self.n_effective), k=self.n_active)
+            / self.n_active
+        )
 
         # Sampling algorithm
-        if sample not in ['tpcn', 'rwm']:
+        if sample not in ["tpcn", "rwm"]:
             raise ValueError(f"Invalid sample {sample}. Options are 'tpcn' or 'rwm'.")
         else:
             self.sampler = sample
@@ -287,35 +303,40 @@ class Sampler:
         self.clustering = clustering
         self.normalize = normalize
         if self.clustering:
-            self.clusterer = HierarchicalGaussianMixture(n_init=1,
-                                                         max_iterations=n_max_clusters-1,
-                                                         min_points=None if n_max_clusters is None else 4*self.n_dim,
-                                                         threshold_modifier=split_threshold,
-                                                         covariance_type='full',
-                                                         normalize=normalize,
-                                                         verbose=False)
+            self.clusterer = HierarchicalGaussianMixture(
+                n_init=1,
+                max_iterations=n_max_clusters - 1,
+                min_points=None if n_max_clusters is None else 4 * self.n_dim,
+                threshold_modifier=split_threshold,
+                covariance_type="full",
+                normalize=normalize,
+                verbose=False,
+            )
         else:
             self.clusterer = None
         self.cluster_every = cluster_every
         self.cluster_every_init = cluster_every
         self.K = 1
-        
 
         # Resampling algorithm
-        if resample not in ['mult', 'syst']:
-            raise ValueError(f"Invalid resample {resample}. Options are 'mult' or 'syst'.")
+        if resample not in ["mult", "syst"]:
+            raise ValueError(
+                f"Invalid resample {resample}. Options are 'mult' or 'syst'."
+            )
         else:
             self.resample = resample
 
         # Prior samples to draw
         if n_prior is None:
-            self.n_prior = int(2 * np.maximum(self.n_effective//self.n_active, 1) * self.n_active)
+            self.n_prior = int(
+                2 * np.maximum(self.n_effective // self.n_active, 1) * self.n_active
+            )
         else:
-            self.n_prior = int(np.maximum(n_prior/self.n_active, 1) * self.n_active)
+            self.n_prior = int(np.maximum(n_prior / self.n_active, 1) * self.n_active)
         self.prior_samples = None
 
         self.n_warmup_iters = None  # Set in run()
-        
+
         self.progress = None
         self.pbar = None
 
@@ -335,12 +356,13 @@ class Sampler:
         self.calls = None
         self.iter = None
 
-
-    def run(self,
-            n_total: int = 4096,
-            progress: bool = True,
-            resume_state_path: Union[str, Path] = None,
-            save_every: int = None):
+    def run(
+        self,
+        n_total: int = 4096,
+        progress: bool = True,
+        resume_state_path: Union[str, Path] = None,
+        save_every: int = None,
+    ):
         r"""Run Persistent Sampling.
 
         Parameters
@@ -352,7 +374,7 @@ class Sampler:
             The number of importance samples used to estimate the
             evidence (default is ``n_evidence=4096``). If ``n_evidence=0``,
             the evidence is not estimated using importance sampling and the
-            SMC estimate is used instead. If ``preconditioned=False``, 
+            SMC estimate is used instead. If ``preconditioned=False``,
             the evidence is estimated using SMC and ``n_evidence`` is ignored.
         progress : bool
             If True, print progress bar (default is ``progress=True``).
@@ -370,15 +392,21 @@ class Sampler:
             t0 = self.iter
             # Initialise progress bar
             self.pbar = ProgressBar(self.progress, initial=t0)
-            self.pbar.update_stats(dict(beta=self.particles.get("beta", -1),
-                                        calls=self.particles.get("calls", -1),
-                                        ESS=self.particles.get("ess", -1),
-                                        logZ=self.particles.get("logz", -1),
-                                        logL=np.mean(self.particles.get("logl", -1)),
-                                        acc=self.particles.get("accept", -1),
-                                        steps=self.particles.get("steps", -1),
-                                        eff=self.particles.get("efficiency", -1),
-                                        K=getattr(self, 'K', len(getattr(self, 'means', np.atleast_2d([0])))) ))
+            self.pbar.update_stats(
+                dict(
+                    beta=self.particles.get("beta", -1),
+                    calls=self.particles.get("calls", -1),
+                    ESS=self.particles.get("ess", -1),
+                    logZ=self.particles.get("logz", -1),
+                    logL=np.mean(self.particles.get("logl", -1)),
+                    acc=self.particles.get("accept", -1),
+                    steps=self.particles.get("steps", -1),
+                    eff=self.particles.get("efficiency", -1),
+                    K=getattr(
+                        self, "K", len(getattr(self, "means", np.atleast_2d([0])))
+                    ),
+                )
+            )
         else:
             t0 = 0
             self.iter = 0
@@ -390,16 +418,20 @@ class Sampler:
 
             # Initialise progress bar
             self.pbar = ProgressBar(self.progress)
-            self.pbar.update_stats(dict(beta=0.0,
-                                        calls=self.calls,
-                                        ESS=self.n_effective,
-                                        logZ=0.0,
-                                        logL=0.0,
-                                        acc=0.0,
-                                        steps=0,
-                                        eff=0.0,
-                                        K=1))
-            
+            self.pbar.update_stats(
+                dict(
+                    beta=0.0,
+                    calls=self.calls,
+                    ESS=self.n_effective,
+                    logZ=0.0,
+                    logL=0.0,
+                    acc=0.0,
+                    steps=0,
+                    eff=0.0,
+                    K=1,
+                )
+            )
+
         self.n_total = int(n_total)
 
         # Number of warmup iterations (prior sampling at beta=0)
@@ -412,11 +444,11 @@ class Sampler:
         # Compute evidence
         _, self.logz = self.particles.compute_logw_and_logz(1.0)
         self.logz_err = None
-        
+
         # Save final state
         if save_every is not None:
-            self.save_state(self.output_dir / f'{self.output_label}_final.state')
-        
+            self.save_state(self.output_dir / f"{self.output_label}_final.state")
+
         # Close progress bar
         self.pbar.close()
 
@@ -442,7 +474,7 @@ class Sampler:
         state : dict
             Dictionary containing the current state of the particles with keys:
             - "u": Unit hypercube coordinates of particles
-            - "x": Physical coordinates of particles  
+            - "x": Physical coordinates of particles
             - "logl": Log-likelihood values
             - "assignments": Cluster assignments
             - "blobs": Additional data from likelihood (if available)
@@ -458,7 +490,9 @@ class Sampler:
         # Save state if requested
         if save_every is not None:
             if (self.iter - t0) % int(save_every) == 0 and self.iter != t0:
-                self.save_state(self.output_dir / f'{self.output_label}_{self.iter}.state')
+                self.save_state(
+                    self.output_dir / f"{self.output_label}_{self.iter}.state"
+                )
 
         # Choose next beta based on ESS of weights
         self._reweight()
@@ -473,31 +507,37 @@ class Sampler:
         self._mutate()
 
         # Update progress bar
-        self.pbar.update_stats(dict(calls=self.calls, 
-                                    beta=self.beta, 
-                                    ESS=int(self.ess),
-                                    logZ=self.logz,
-                                    logL=np.mean(self.logl),
-                                    acc=self.acceptance,
-                                    steps=self.steps,
-                                    eff=self.efficiency))
+        self.pbar.update_stats(
+            dict(
+                calls=self.calls,
+                beta=self.beta,
+                ESS=int(self.ess),
+                logZ=self.logz,
+                logL=np.mean(self.logl),
+                acc=self.acceptance,
+                steps=self.steps,
+                eff=self.efficiency,
+            )
+        )
 
         # Save particles
-        self.particles.update({
-            "u": self.u,
-            "x": self.x,
-            "logl": self.logl,
-            "assignments": self.assignments,
-            "blobs": self.blobs,
-            "iter": self.iter,
-            "calls": self.calls,
-            "steps": self.steps,
-            "efficiency": self.efficiency,
-            "ess": self.ess,
-            "accept": self.acceptance,
-            "beta": self.beta,
-            "logz": self.logz,
-        })
+        self.particles.update(
+            {
+                "u": self.u,
+                "x": self.x,
+                "logl": self.logl,
+                "assignments": self.assignments,
+                "blobs": self.blobs,
+                "iter": self.iter,
+                "calls": self.calls,
+                "steps": self.steps,
+                "efficiency": self.efficiency,
+                "ess": self.ess,
+                "accept": self.acceptance,
+                "beta": self.beta,
+                "logz": self.logz,
+            }
+        )
 
         # Return current state
         return {
@@ -524,27 +564,26 @@ class Sampler:
         ----------
         current_particles : dict
             Dictionary containing the current particles.
-        
+
         Returns
         -------
         termination : bool
             True if termination criterion is not satisfied.
         """
         log_weights, _ = self.particles.compute_logw_and_logz(1.0)
-        
+
         # If no particles yet (first iteration), continue
         if len(log_weights) == 0:
             return True
-            
+
         weights = np.exp(log_weights - np.max(log_weights))
-        if self.metric == 'ess':
+        if self.metric == "ess":
             ess = effective_sample_size(weights)
-        elif self.metric == 'uss':
+        elif self.metric == "uss":
             ess = unique_sample_size(weights)
 
         return 1.0 - self.beta >= self.BETA_TOLERANCE or ess < self.n_total
 
-    
     def _mutate(self):
         """
         Evolve particles using MCMC.
@@ -556,7 +595,7 @@ class Sampler:
         ----------
         current_particles : dict
             Dictionary containing the current particles.
-        
+
         Returns
         -------
         current_particles : dict
@@ -565,7 +604,9 @@ class Sampler:
         # During warmup (beta=0), draw fresh prior samples instead of MCMC
         if self.beta == 0.0:
             self.u = np.random.rand(self.n_active, self.n_dim)
-            self.x = np.array([self.prior_transform(self.u[i]) for i in range(self.n_active)])
+            self.x = np.array(
+                [self.prior_transform(self.u[i]) for i in range(self.n_active)]
+            )
             self.logl, self.blobs = self._log_like(self.x)
             self.assignments = np.zeros(self.n_active, dtype=int)
             self.calls += self.n_active
@@ -580,13 +621,15 @@ class Sampler:
                 infinite_idx = all_idx[inf_logl_mask]
                 finite_idx = all_idx[~inf_logl_mask]
                 if len(finite_idx) > 0:
-                    idx = np.random.choice(finite_idx, size=len(infinite_idx), replace=True)
+                    idx = np.random.choice(
+                        finite_idx, size=len(infinite_idx), replace=True
+                    )
                     self.x[infinite_idx] = self.x[idx]
                     self.u[infinite_idx] = self.u[idx]
                     self.logl[infinite_idx] = self.logl[idx]
                     if self.have_blobs:
                         self.blobs[infinite_idx] = self.blobs[idx]
-                
+
                 # Correct logZ for fraction of prior with finite likelihood support
                 n_finite = len(finite_idx)
                 n_total = len(self.logl)
@@ -598,7 +641,16 @@ class Sampler:
         else:
             blobs = None
 
-        self.u, self.x, self.logl, blobs, self.efficiency, self.acceptance, self.steps, calls = parallel_mcmc(
+        (
+            self.u,
+            self.x,
+            self.logl,
+            blobs,
+            self.efficiency,
+            self.acceptance,
+            self.steps,
+            calls,
+        ) = parallel_mcmc(
             u=self.u,
             x=self.x,
             logl=self.logl,
@@ -616,12 +668,12 @@ class Sampler:
             sample=self.sampler,
             periodic=self.periodic,
             reflective=self.reflective,
-            verbose=True,)
+            verbose=True,
+        )
 
         if self.have_blobs:
             self.blobs = blobs.copy()
         self.calls += calls
-    
 
     def _train(self):
         """
@@ -631,7 +683,7 @@ class Sampler:
         ----------
         current_particles : dict
             Dictionary containing the current particles.
-        
+
         Returns
         -------
         current_particles : dict
@@ -657,7 +709,14 @@ class Sampler:
                 u_idx = self.u[idx]
                 weights_idx = self.weights[idx]
                 weights_idx /= np.sum(weights_idx)
-                u_idx_resampled = u_idx[np.random.choice(np.arange(len(u_idx)), size=len(u_idx)*4, replace=True, p=weights_idx)]
+                u_idx_resampled = u_idx[
+                    np.random.choice(
+                        np.arange(len(u_idx)),
+                        size=len(u_idx) * 4,
+                        replace=True,
+                        p=weights_idx,
+                    )
+                ]
                 mean, covariance, dof = fit_mvstud(u_idx_resampled)
                 if ~np.isfinite(dof):
                     dof = self.DOF_FALLBACK
@@ -669,11 +728,20 @@ class Sampler:
             self.covariances = np.array(covariances)
             self.degrees_of_freedom = np.array(degrees_of_freedom)
             self.K = self.means.shape[0]
-        elif self.clustering and not (self.iter % self.cluster_every == 0 or self.iter == 0):
+        elif self.clustering and not (
+            self.iter % self.cluster_every == 0 or self.iter == 0
+        ):
             # Use previous clustering
             pass
         else:
-            u_resampled = self.u[np.random.choice(np.arange(len(self.weights)), size=self.n_effective*4, replace=True, p=self.weights)]
+            u_resampled = self.u[
+                np.random.choice(
+                    np.arange(len(self.weights)),
+                    size=self.n_effective * 4,
+                    replace=True,
+                    p=self.weights,
+                )
+            ]
             mean, covariance, dof = fit_mvstud(u_resampled)
             self.means = mean.reshape(1, self.n_dim)
             self.covariances = covariance.reshape(1, self.n_dim, self.n_dim)
@@ -711,9 +779,11 @@ class Sampler:
         weights = self.weights
         blobs = self.blobs
 
-        if self.resample == 'mult':
-            idx_resampled = np.random.choice(np.arange(len(weights)), size=self.n_active, replace=True, p=weights)
-        elif self.resample == 'syst':
+        if self.resample == "mult":
+            idx_resampled = np.random.choice(
+                np.arange(len(weights)), size=self.n_active, replace=True, p=weights
+            )
+        elif self.resample == "syst":
             idx_resampled = systematic_resample(self.n_active, weights=weights)
 
         self.u = u[idx_resampled]
@@ -726,7 +796,7 @@ class Sampler:
             self.assignments = self.clusterer.predict(self.u)
         else:
             self.assignments = np.zeros(self.n_active, dtype=int)
-    
+
     def _reweight(self):
         """
         Reweight particles.
@@ -751,9 +821,15 @@ class Sampler:
             self.logz = 0.0
             self.ess = self.n_effective
             # Uniform weights during warmup
-            n_particles = len(self.particles.get("logl", flat=True)) if self.iter > 1 else self.n_active
+            n_particles = (
+                len(self.particles.get("logl", flat=True))
+                if self.iter > 1
+                else self.n_active
+            )
             self.weights = np.ones(n_particles) / n_particles
-            self.pbar.update_stats(dict(beta=self.beta, ESS=int(self.ess), logZ=self.logz))
+            self.pbar.update_stats(
+                dict(beta=self.beta, ESS=int(self.ess), logZ=self.logz)
+            )
             return
 
         beta_prev = self.beta
@@ -763,9 +839,9 @@ class Sampler:
         def get_weights_and_ess(beta):
             logw, _ = self.particles.compute_logw_and_logz(beta)
             weights = np.exp(logw - np.max(logw))
-            if self.metric == 'ess':
+            if self.metric == "ess":
                 ess_est = effective_sample_size(weights)
-            elif self.metric == 'uss':
+            elif self.metric == "uss":
                 ess_est = unique_sample_size(weights)
             return weights, ess_est
 
@@ -779,7 +855,7 @@ class Sampler:
             ess_est = ess_est_prev
             self.pbar.update_stats(dict(beta=beta, ESS=int(ess_est_prev), logZ=logz))
         elif ess_est_max >= self.n_effective:
-            beta = beta_max 
+            beta = beta_max
             weights = weights_max
             _, logz = self.particles.compute_logw_and_logz(beta)
             ess_est = ess_est_max
@@ -790,7 +866,11 @@ class Sampler:
 
                 weights, ess_est = get_weights_and_ess(beta)
 
-                if np.abs(ess_est - self.n_effective) < self.ESS_TOLERANCE * self.n_effective or beta == 1.0:
+                if (
+                    np.abs(ess_est - self.n_effective)
+                    < self.ESS_TOLERANCE * self.n_effective
+                    or beta == 1.0
+                ):
                     _, logz = self.particles.compute_logw_and_logz(beta)
                     self.pbar.update_stats(dict(beta=beta, ESS=int(ess_est), logZ=logz))
                     break
@@ -807,12 +887,22 @@ class Sampler:
             # Adjust the number of effective particles based on the expected number of unique particles
             n_unique_active = unique_sample_size(weights, k=self.n_active)
             # Maintain the original ratio of unique active to effective particles
-            if n_unique_active < self.n_active * (self.DYNAMIC_RATIO_LOWER * self.dynamic_ratio):
-                self.n_effective = int(self.n_active/n_unique_active * self.n_effective)
-            elif n_unique_active > self.n_active * np.minimum(self.DYNAMIC_RATIO_UPPER * self.dynamic_ratio, 1.0):
-                self.n_effective = int(n_unique_active/self.n_active * self.n_effective)
+            if n_unique_active < self.n_active * (
+                self.DYNAMIC_RATIO_LOWER * self.dynamic_ratio
+            ):
+                self.n_effective = int(
+                    self.n_active / n_unique_active * self.n_effective
+                )
+            elif n_unique_active > self.n_active * np.minimum(
+                self.DYNAMIC_RATIO_UPPER * self.dynamic_ratio, 1.0
+            ):
+                self.n_effective = int(
+                    n_unique_active / self.n_active * self.n_effective
+                )
 
-        idx, weights = trim_weights(np.arange(len(weights)), weights, ess=self.TRIM_ESS, bins=self.TRIM_BINS)
+        idx, weights = trim_weights(
+            np.arange(len(weights)), weights, ess=self.TRIM_ESS, bins=self.TRIM_BINS
+        )
         self.u = self.particles.get("u", index=None, flat=True)[idx]
         self.x = self.particles.get("x", index=None, flat=True)[idx]
         self.logl = self.particles.get("logl", index=None, flat=True)[idx]
@@ -823,14 +913,26 @@ class Sampler:
         self.weights = weights
         self.ess = ess_est
 
-        if self.n_boost > 1:
+        if self.n_boost is not None:
             _, posterior_ess = get_weights_and_ess(1.0)
-            
+
             r = (posterior_ess - 1.0) / self.n_effective
-            new_n_effective = int((1-r) * self.n_effective_init + r * self.n_boost * self.n_effective_init)
+            new_n_effective = int((1 - r) * self.n_effective_init + r * self.n_boost)
+            new_n_effective = min(new_n_effective, self.n_boost)
             if new_n_effective > self.n_effective:
                 self.n_effective = new_n_effective
-                self.n_active = int(self.n_active_init + (self.n_effective_init * self.n_boost - self.n_effective_init) * r**self.BOOST_STEEPNESS)
+                target_n_active = self.n_boost // 2
+                self.n_active = int(
+                    self.n_active_init
+                    + (target_n_active - self.n_active_init) * r**self.BOOST_STEEPNESS
+                )
+
+            # Cap n_effective and n_active at n_boost and n_boost // 2
+            if self.n_effective > self.n_boost:
+                self.n_effective = self.n_boost
+            max_n_active = self.n_boost // 2
+            if self.n_active > max_n_active:
+                self.n_active = max_n_active
 
     def _log_like(self, x):
         """
@@ -840,7 +942,7 @@ class Sampler:
         ----------
         x : array_like
             Array of parameter values.
-        
+
         Returns
         -------
         logl : float
@@ -854,7 +956,6 @@ class Sampler:
             results = list(self.distribute(self.log_likelihood, x))
         else:
             results = list(map(self.log_likelihood, x))
-
 
         try:
             blob = [l[1:] for l in results if len(l) > 1]
@@ -887,7 +988,7 @@ class Sampler:
                     blob = np.squeeze(blob, tuple(axes))
 
         return logl, blob
-        
+
     def evidence(self):
         """
         Return the log evidence estimate and error.
@@ -902,15 +1003,23 @@ class Sampler:
 
         try:
             # deal with pool
-            if state['pool'] is not None:
-                del state['pool']  # remove pool
-                del state['distribute']  # remove `pool.map` function hook
+            if state["pool"] is not None:
+                del state["pool"]  # remove pool
+                del state["distribute"]  # remove `pool.map` function hook
         except:  # TODO use specific exception type
             pass
 
         return state
 
-    def posterior(self, resample=False, return_blobs=False, trim_importance_weights=True, return_logw=False, ess_trim=0.99, bins_trim=1_000):
+    def posterior(
+        self,
+        resample=False,
+        return_blobs=False,
+        trim_importance_weights=True,
+        return_logw=False,
+        ess_trim=0.99,
+        bins_trim=1_000,
+    ):
         """
         Return posterior samples.
 
@@ -949,7 +1058,9 @@ class Sampler:
         weights = np.exp(logw)
 
         if trim_importance_weights:
-            idx, weights = trim_weights(np.arange(len(samples)), weights, ess=ess_trim, bins=bins_trim)
+            idx, weights = trim_weights(
+                np.arange(len(samples)), weights, ess=ess_trim, bins=bins_trim
+            )
             samples = samples[idx]
             logl = logl[idx]
             logw = logw[idx]
@@ -957,15 +1068,17 @@ class Sampler:
                 blobs = blobs[idx]
 
         if resample:
-            if self.resample == 'mult':
-                idx_resampled = np.random.choice(np.arange(len(weights)), size=len(samples), replace=True, p=weights)
-            elif self.resample == 'syst':
+            if self.resample == "mult":
+                idx_resampled = np.random.choice(
+                    np.arange(len(weights)), size=len(samples), replace=True, p=weights
+                )
+            elif self.resample == "syst":
                 idx_resampled = systematic_resample(len(weights), weights=weights)
             if return_blobs:
                 return samples[idx_resampled], logl[idx_resampled], blobs[idx_resampled]
             else:
                 return samples[idx_resampled], logl[idx_resampled]
-            
+
         else:
             if return_logw:
                 if return_blobs:
@@ -998,17 +1111,17 @@ class Sampler:
         path : ``Union[str, Path]``
             Path to save state.
         """
-        print(f'Saving PS state to {path}')
+        print(f"Saving PS state to {path}")
         Path(path).parent.mkdir(exist_ok=True)
-        temp_path = Path(path).with_suffix('.temp')
-        with open(temp_path, 'wb') as f:
+        temp_path = Path(path).with_suffix(".temp")
+        with open(temp_path, "wb") as f:
             state = self.__dict__.copy()
-            del state['pbar']  # Cannot be pickled
+            del state["pbar"]  # Cannot be pickled
             try:
                 # deal with pool
-                if state['pool'] is not None:
-                    del state['pool']  # remove pool
-                    del state['distribute']  # remove `pool.map` function hook
+                if state["pool"] is not None:
+                    del state["pool"]  # remove pool
+                    del state["distribute"]  # remove `pool.map` function hook
             except BaseException as e:
                 print(e)
 
@@ -1026,7 +1139,6 @@ class Sampler:
         path : ``Union[str, Path]``
             Path from which to load state.
         """
-        with open(path, 'rb') as f:
+        with open(path, "rb") as f:
             state = dill.load(file=f)
         self.__dict__ = {**self.__dict__, **state}
-

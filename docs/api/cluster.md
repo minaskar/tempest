@@ -62,7 +62,7 @@ During sampling:
 Control clustering through `Sampler` parameters:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior=prior,
     likelihood=log_likelihood,
     clustering=True,          # Enable clustering
@@ -120,7 +120,7 @@ cluster_covs = sampler.covariances
 
 ```python
 # Disable for simple problems
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior=prior,
     likelihood=log_likelihood,
     clustering=False,
@@ -142,7 +142,7 @@ sampler = pc.Sampler(
 For high dimensions, clustering becomes harder:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior=prior,
     likelihood=log_likelihood,
     clustering=True,

@@ -77,9 +77,9 @@ def log_likelihood_vectorized(x):
 ## Step 3: Create the Sampler
 
 ```python
-import tempest as pc
+import tempest as tp
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -91,7 +91,7 @@ sampler = pc.Sampler(
 For vectorized likelihood:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_vectorized,
     n_dim=n_dim,
@@ -123,7 +123,7 @@ Here's a complete example sampling from a 2D Gaussian:
 
 ```python
 import numpy as np
-import tempest as pc
+import tempest as tp
 from scipy.stats import uniform
 
 # Setup
@@ -139,7 +139,7 @@ def log_likelihood(x):
     return -0.5 * np.sum((x - mu)**2)
 
 # Create and run sampler
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,

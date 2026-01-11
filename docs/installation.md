@@ -86,8 +86,8 @@ pip install pytest pytest-cov
 To verify that Tempest is installed correctly, open a Python shell and run:
 
 ```python
-import tempest as pc
-print(pc.__version__)
+import tempest as tp
+print(tp.__version__)
 ```
 
 This should print the version number of Tempest.

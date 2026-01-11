@@ -28,7 +28,7 @@ prior_dists = [
 def prior_transform(u):
     return np.array([dist.ppf(u[i]) for i, dist in enumerate(prior_dists)])
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -132,7 +132,7 @@ def prior_transform(u):
     return x
 
 # Use directly in sampler
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior=prior_transform,
     likelihood=log_likelihood,
 )

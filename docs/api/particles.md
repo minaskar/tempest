@@ -35,9 +35,9 @@ The `Particles` class:
 The `Particles` class is primarily used internally by the `Sampler`, but you can access it for detailed analysis:
 
 ```python
-import tempest as pc
+import tempest as tp
 
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,

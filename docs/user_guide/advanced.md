@@ -9,7 +9,7 @@ Tempest can dynamically adjust the number of effective particles based on the sa
 ### Enabling Dynamic Mode
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -28,16 +28,16 @@ With `dynamic=True`, Tempest automatically adjusts `n_effective` based on the ef
 Use `n_boost` to gradually increase particle count as sampling approaches the posterior:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
     n_effective=512,
-    n_boost=4,  # Up to 4x increase
+    n_boost=2048,  # Target 2048 effective particles
 )
 ```
 
-This starts with fewer particles and increases them as the effective sample size improves, balancing computational cost with accuracy.
+This starts with 512 effective particles and gradually increases to 2048 as sampling converges, balancing computational cost with accuracy. Set `n_boost=n_effective` to disable boosting, or `n_boost=None` to use the default behavior (no boosting).
 
 ---
 
@@ -48,7 +48,7 @@ Tempest uses hierarchical Gaussian mixture clustering to handle multimodal distr
 ### Configuration
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -81,7 +81,7 @@ Iter: 50 [beta=0.85, K=3, ESS=512, ...]
 For fine-grained control, use the `sample()` method instead of `run()`:
 
 ```python
-sampler = pc.Sampler(prior=prior, likelihood=log_likelihood)
+sampler = tp.Sampler(prior=prior, likelihood=log_likelihood)
 
 # Initialize
 sampler.iter = 0
@@ -129,7 +129,7 @@ Files are saved to `{output_dir}/{output_label}_{iter}.state`.
 sampler.save_state("my_checkpoint.state")
 
 # Later, in a new session
-sampler = pc.Sampler(prior=prior, likelihood=log_likelihood)
+sampler = tp.Sampler(prior=prior, likelihood=log_likelihood)
 sampler.load_state("my_checkpoint.state")
 sampler.run()  # Continue from checkpoint
 ```
@@ -166,7 +166,7 @@ Trimming removes samples with extremely high weights that can dominate averages.
 Control how particles are resampled between iterations:
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -185,7 +185,7 @@ sampler = pc.Sampler(
 ### Metric Selection
 
 ```python
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -273,7 +273,7 @@ from scipy.stats import median_abs_deviation
 For very long runs, manage memory by periodically saving and clearing:
 
 ```python
-sampler = pc.Sampler(prior=prior, likelihood=log_likelihood)
+sampler = tp.Sampler(prior=prior, likelihood=log_likelihood)
 
 for batch in range(10):
     sampler.run(n_total=1000, save_every=50)
