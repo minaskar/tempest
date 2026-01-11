@@ -13,7 +13,7 @@ __bibtex__ = """
 __url__ = "https://tempest.readthedocs.io"
 __author__ = "Minas Karamanis"
 __email__ = "minaskar@gmail.com"
-__license__ = "GPL-3.0"
+__license__ = "MIT"
 __description__ = "A Python implementation of Persistent Sampling for accelerated Bayesian Computation"
 
 

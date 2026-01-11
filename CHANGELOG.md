@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Migrated from setup.py/setup.cfg to pyproject.toml for modern packaging
 - Removed torch from requirements (Python-only implementation)
+- Changed license from GPL-3.0 to MIT
 
 ### Dependencies
 - numpy>=1.20.0

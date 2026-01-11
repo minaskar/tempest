@@ -4,7 +4,7 @@
 
 **Tempest** is a Python implementation of the **Persistent Sampling** method for accelerated Bayesian inference.
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/minaskar/tempest/blob/master/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/minaskar/tempest/blob/master/LICENCE)
 [![Documentation Status](https://readthedocs.org/projects/tempest/badge/?version=latest)](https://tempest.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://badge.fury.io/py/tempest.svg)](https://badge.fury.io/py/tempest)
 
@@ -144,7 +144,7 @@ See the [Installation Guide](installation.md) for more details.
 
 ## License
 
-Tempest is free software made available under the GPL-3.0 License. For details see the [LICENSE](https://github.com/minaskar/tempest/blob/master/LICENCE) file.
+Tempest is free software made available under the MIT License. For details see the [LICENCE](https://github.com/minaskar/tempest/blob/master/LICENCE) file.
 
 ---
 
