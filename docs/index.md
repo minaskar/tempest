@@ -39,7 +39,7 @@ Tempest is ideal for:
 Here's a simple example showing how to sample from a 10-dimensional Rosenbrock distribution:
 
 ```python
-import tempest as pc
+import tempest as tp
 import numpy as np
 from scipy.stats import uniform
 
@@ -55,7 +55,7 @@ def log_likelihood(x):
                    + (x[:, ::2] - 1.0)**2.0, axis=1)
 
 # Create the sampler
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
@@ -129,6 +129,14 @@ See the [Installation Guide](installation.md) for more details.
     Practical examples and tutorials
 
     [:octicons-arrow-right-24: Examples](examples/rosenbrock.md)
+
+-   :material-history:{ .lg .middle } **Changelog**
+
+    ---
+
+    Detailed history of changes for each version
+
+    [:octicons-arrow-right-24: Changelog](https://github.com/minaskar/tempest/blob/main/CHANGELOG.md)
 
 </div>
 

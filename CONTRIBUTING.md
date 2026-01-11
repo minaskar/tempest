@@ -11,9 +11,8 @@ responsive, I don't always get to every issue immediately.
 [Issues](https://github.com/minaskar/tempest/issues). If you're unable to find an
 open issue addressing the problem, [open a new
 one](https://github.com/minaskar/tempest/issues/new). Be sure to include a **title
-and clear description**, as much relevant information as possible, and the
-simplest possible **code sample** demonstrating the expected behavior that is
-not occurring.
+and clear description**, as much relevant information as possible, and the **simplest possible
+**code sample** demonstrating the expected behavior that is not occurring.
 
 ### Did you write a patch that fixes a bug?
 
@@ -24,9 +23,25 @@ if applicable.
 ### Do you intend to add a new feature or change an existing one?
 
 First, [open a new issue](https://github.com/minaskar/tempest/issues/new) and
-clearly describe your idea. We will then let you know if what you suggest 
+clearly describe your idea. We will then let you know if what you suggest
 aligns with the vision of Tempest. This way you might avoid doing unnecessary
 work and might even find some help from other people.
+
+### Updating the Changelog
+
+When contributing changes to Tempest, please update `CHANGELOG.md`:
+
+1. Add entries to the `[Unreleased]` section
+2. Use the appropriate category:
+   - `Added` for new features
+   - `Changed` for changes in existing functionality
+   - `Deprecated` for soon-to-be removed features
+   - `Removed` for now removed features
+   - `Fixed` for bug fixes
+   - `Security` for security vulnerability fixes
+3. Provide clear, user-friendly descriptions of changes
+
+The changelog follows the [Keep a Changelog](https://keepachangelog.com) format.
 
 Cheers,
 

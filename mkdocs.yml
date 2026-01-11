@@ -105,3 +105,4 @@ nav:
     - Tools: api/tools.md
     - Clustering: api/cluster.md
   - Citation: citation.md
+  - Changelog: https://github.com/minaskar/tempest/blob/main/CHANGELOG.md

@@ -19,7 +19,7 @@ in cosmology and astronomy, ``Tempest`` is user-friendly, flexible, and actively
 
 ## Documentation
 
-Read the docs at [tempest.readthedocs.io](https://tempest.readthedocs.io) for more information, examples and tutorials.
+Read the docs at [tempest.readthedocs.io](https://tempest.readthedocs.io) for more information, examples and tutorials. For a detailed list of changes, see the [CHANGELOG.md](https://github.com/minaskar/tempest/blob/main/CHANGELOG.md).
 
 ## Installation
 
@@ -42,7 +42,7 @@ python setup.py install
 For instance, if you wanted to draw samples from a 10-dimensional Rosenbrock distribution with a uniform prior, you would do something like:
 
 ```python
-import tempest as pc
+import tempest as tp
 import numpy as np
 
 n_dim = 10  # Number of dimensions
@@ -57,7 +57,7 @@ def log_likelihood(x):
             + (x[:,::2] - 1.0)**2.0, axis=1)
 
 # Create and run sampler
-sampler = pc.Sampler(
+sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
