@@ -107,13 +107,16 @@ class Sampler:
         Metric used for determining the next temperature (``beta``) level (default is ``metric="ess"``).
         Options are ``"ess"`` (Effective Sample Size) or ``"uss"`` (Unique Sample Size). The metric
         is used to determine the next temperature level based on the ESS or USS of the importance
-        weights. If the ESS or USS of the importance weights is below the target threshold, the temperature
-        is increased. If the ESS or USS is above the target threshold, the temperature is decreased. The
-        target threshold is set by the ``n_effective`` parameter.
-    n_prior : int
-        Number of prior samples to draw (default is ``n_prior=2*(n_effective//n_active)*n_active``). This
-        is used to initialise the particles at the beginning of the run. The prior samples are used to
-        warm-up the sampler and ensure that the particles are well distributed across the prior volume.
+        weights. If the ESS or USS of the importance weights is below the target threshold, the
+        temperature is increased. If the ESS or USS is above the target threshold, the temperature
+        is decreased. The target threshold is set by the ``n_effective`` parameter.
+
+    Note
+    ----
+    The sampler uses an adaptive temperature scheduler that automatically maintains
+    beta=0 (prior sampling) until the effective sample size reaches n_effective.
+    This adaptive warmup ensures sufficient prior samples are accumulated before
+    transitioning to tempered sampling, without requiring a preset iteration count.
     sample : ``str``
         Type of MCMC sampler to use (default is ``sample="tpcn"``). Options are
         ``"pcn"`` (t-preconditioned Crank-Nicolson) or ``"rwm"`` (Random-walk Metropolis).
@@ -164,7 +167,6 @@ class Sampler:
         split_threshold: float = 1.0,
         n_max_clusters: Optional[int] = None,
         metric: str = "ess",
-        n_prior: Optional[int] = None,
         sample: str = "tpcn",
         n_steps: Optional[int] = None,
         n_max_steps: Optional[int] = None,
@@ -326,17 +328,6 @@ class Sampler:
         else:
             self.resample = resample
 
-        # Prior samples to draw
-        if n_prior is None:
-            self.n_prior = int(
-                2 * np.maximum(self.n_effective // self.n_active, 1) * self.n_active
-            )
-        else:
-            self.n_prior = int(np.maximum(n_prior / self.n_active, 1) * self.n_active)
-        self.prior_samples = None
-
-        self.n_warmup_iters = None  # Set in run()
-
         self.progress = None
         self.pbar = None
 
@@ -434,10 +425,7 @@ class Sampler:
 
         self.n_total = int(n_total)
 
-        # Number of warmup iterations (prior sampling at beta=0)
-        self.n_warmup_iters = self.n_prior // self.n_active
-
-        # Run PS loop (includes warmup iterations at beta=0)
+        # Run PS loop (adaptive warmup and annealing)
         while self._not_termination():
             self.sample(save_every=save_every, t0=t0)
 
@@ -689,12 +677,8 @@ class Sampler:
         current_particles : dict
             Dictionary containing the updated particles.
         """
-        # Skip training during warmup (beta=0) - use simple isotropic proposal
+        # Skip training at beta=0 (mutation draws fresh prior samples)
         if self.beta == 0.0:
-            self.means = np.array([[0.5] * self.n_dim])
-            self.covariances = np.array([np.eye(self.n_dim) * 0.1])
-            self.degrees_of_freedom = np.array([self.DOF_FALLBACK])
-            self.K = 1
             return
 
         if self.clustering and (self.iter % self.cluster_every == 0 or self.iter == 0):
@@ -815,18 +799,12 @@ class Sampler:
         self.iter += 1
         self.pbar.update_iter()
 
-        # During warmup phase, keep beta=0 to accumulate prior samples
-        if self.iter <= self.n_warmup_iters:
+        # Handle first iteration (no particles yet)
+        if len(self.particles.past.get("beta", [])) == 0:
             self.beta = 0.0
             self.logz = 0.0
             self.ess = self.n_effective
-            # Uniform weights during warmup
-            n_particles = (
-                len(self.particles.get("logl", flat=True))
-                if self.iter > 1
-                else self.n_active
-            )
-            self.weights = np.ones(n_particles) / n_particles
+            self.weights = np.ones(self.n_active) / self.n_active
             self.pbar.update_stats(
                 dict(beta=self.beta, ESS=int(self.ess), logZ=self.logz)
             )
