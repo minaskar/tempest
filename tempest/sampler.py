@@ -483,13 +483,13 @@ class Sampler:
                 )
 
         # Choose next beta based on ESS of weights
-        self._reweight()
+        weights = self._reweight()
 
         # Train clustering
-        self._train()
+        self._train(weights)
 
         # Resample particles
-        self._resample()
+        self._resample(weights)
 
         # Evolve particles using MCMC
         self._mutate()
@@ -684,19 +684,20 @@ class Sampler:
         calls = self.state.get_current("calls") + mcmc_calls
         self.state.set_current("calls", calls)
 
-    def _train(self):
+    def _train(self, weights: np.ndarray):
         """
-        Train normalizing flow.
+        Train clustering model using weighted historical particles.
 
         Parameters
         ----------
-        current_particles : dict
-            Dictionary containing the current particles.
+        weights : np.ndarray
+            Importance weights for all historical particles.
 
-        Returns
-        -------
-        current_particles : dict
-            Dictionary containing the updated particles.
+        Updates internal state:
+            - means: cluster centers (shape: [n_clusters, n_dim])
+            - covariances: cluster covariances (shape: [n_clusters, n_dim, n_dim])
+            - degrees_of_freedom: cluster DOFs (shape: [n_clusters])
+            - K: number of clusters
         """
         # Skip training at beta=0 (mutation draws fresh prior samples)
         beta_val = self.state.get_current("beta")
@@ -704,19 +705,24 @@ class Sampler:
             return
 
         iter_val = self.state.get_current("iter")
+
+        # Trim weights for clustering robustness
+        trim_idx, weights_trimmed = trim_weights(
+            np.arange(len(weights)), weights, ess=self.TRIM_ESS, bins=self.TRIM_BINS
+        )
+
         if self.clustering and (iter_val % self.cluster_every == 0 or iter_val == 0):
             # Fit clustering model
-            u = self.state.get_current("u")
-            weights = self.state.get_current("weights")
-            self.clusterer.fit(u, weights)
+            u = self.state.get_history("u", flat=True)[trim_idx]
+            self.clusterer.fit(u, weights_trimmed)
             labels = self.clusterer.predict(u)
             means = []
             covariances = []
             degrees_of_freedom = []
             for label in range(np.unique(labels).shape[0]):
-                idx = np.where(labels == label)[0]
-                u_idx = u[idx]
-                weights_idx = weights[idx]
+                idx_cluster = np.where(labels == label)[0]
+                u_idx = u[idx_cluster]
+                weights_idx = weights_trimmed[idx_cluster]
                 weights_idx /= np.sum(weights_idx)
                 u_idx_resampled = u_idx[
                     np.random.choice(
@@ -743,14 +749,13 @@ class Sampler:
             # Use previous clustering
             pass
         else:
-            u = self.state.get_current("u")
-            weights = self.state.get_current("weights")
+            u = self.state.get_history("u", flat=True)[trim_idx]
             u_resampled = u[
                 np.random.choice(
-                    np.arange(len(weights)),
+                    np.arange(len(weights_trimmed)),
                     size=self.n_effective * 4,
                     replace=True,
-                    p=weights,
+                    p=weights_trimmed,
                 )
             ]
             mean, covariance, dof = fit_mvstud(u_resampled)
@@ -765,19 +770,21 @@ class Sampler:
         if self.pbar is not None:
             self.pbar.update_stats(dict(K=self.K))
 
-    def _resample(self):
+    def _resample(self, weights: np.ndarray):
         """
-        Resample particles.
+        Resample to n_active particles using importance weights.
 
         Parameters
         ----------
-        current_particles : dict
-            Dictionary containing the current particles.
+        weights : np.ndarray
+            Importance weights for all historical particles (untrimmed).
 
-        Returns
-        -------
-        current_particles : dict
-            Dictionary containing the updated particles.
+        Updates current state:
+            - u: unit hypercube coordinates (shape: [n_active, n_dim])
+            - x: physical coordinates (shape: [n_active, n_dim])
+            - logl: log-likelihoods (shape: [n_active])
+            - blobs: auxiliary data (shape: [n_active, ...] if enabled)
+            - assignments: cluster labels (shape: [n_active])
         """
         # Skip resampling during warmup (beta=0) - will draw fresh prior samples
         beta = self.state.get_current("beta")
@@ -785,11 +792,10 @@ class Sampler:
             self.state.set_current("assignments", np.zeros(self.n_active, dtype=int))
             return
 
-        u = self.state.get_current("u")
-        x = self.state.get_current("x")
-        logl = self.state.get_current("logl")
-        weights = self.state.get_current("weights")
-        blobs = self.state.get_current("blobs")
+        u = self.state.get_history("u", flat=True)
+        x = self.state.get_history("x", flat=True)
+        logl = self.state.get_history("logl", flat=True)
+        blobs = self.state.get_history("blobs", flat=True) if self.have_blobs else None
 
         if self.resample == "mult":
             idx_resampled = np.random.choice(
@@ -815,17 +821,19 @@ class Sampler:
 
     def _reweight(self):
         """
-        Reweight particles.
+        Reweight particles to determine next temperature level.
 
-        Parameters
-        ----------
-        current_particles : dict
-            Dictionary containing the current particles.
+        Updates current state with:
+            - iter: incremented iteration number
+            - beta: new inverse temperature
+            - logz: new log-evidence estimate
+            - ess: new effective sample size
 
         Returns
         -------
-        current_particles : dict
-            Dictionary containing the updated particles.
+        weights : np.ndarray
+            Importance weights for all historical particles (untrimmed).
+            Shape: (n_total,) where n_total is sum of all historical samples.
         """
         # Update iteration index
         iter_val = self.state.get_current("iter") + 1
@@ -839,11 +847,10 @@ class Sampler:
                     "beta": 0.0,
                     "logz": 0.0,
                     "ess": self.n_effective,
-                    "weights": np.ones(self.n_active) / self.n_active,
                 }
             )
             self.pbar.update_stats(dict(beta=0.0, ESS=int(self.n_effective), logZ=0.0))
-            return
+            return np.ones(self.n_active) / self.n_active
 
         beta_prev = self.state.get_current("beta")
         beta_max = 1.0
@@ -913,30 +920,6 @@ class Sampler:
                     n_unique_active / self.n_active * self.n_effective
                 )
 
-        idx, weights = trim_weights(
-            np.arange(len(weights)), weights, ess=self.TRIM_ESS, bins=self.TRIM_BINS
-        )
-        u = self.state.get_history("u", flat=True)[idx]
-        x = self.state.get_history("x", flat=True)[idx]
-        logl = self.state.get_history("logl", flat=True)[idx]
-        blobs = (
-            self.state.get_history("blobs", flat=True)[idx] if self.have_blobs else None
-        )
-
-        self.state.update_current(
-            {
-                "u": u,
-                "x": x,
-                "logl": logl,
-                "logz": logz,
-                "beta": beta,
-                "weights": weights,
-                "ess": ess_est,
-            }
-        )
-        if self.have_blobs:
-            self.state.set_current("blobs", blobs)
-
         if self.n_boost is not None:
             _, posterior_ess = get_weights_and_ess(1.0)
 
@@ -957,6 +940,15 @@ class Sampler:
             max_n_active = self.n_boost // 2
             if self.n_active > max_n_active:
                 self.n_active = max_n_active
+
+        self.state.update_current(
+            {
+                "logz": logz,
+                "beta": beta,
+                "ess": ess_est,
+            }
+        )
+        return weights
 
     def _log_like(self, x):
         """

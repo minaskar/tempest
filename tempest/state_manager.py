@@ -10,7 +10,6 @@ CURRENT_STATE_KEYS = frozenset(
         "x",
         "logl",
         "assignments",
-        "weights",
         "blobs",
         "acceptance",
         "steps",
