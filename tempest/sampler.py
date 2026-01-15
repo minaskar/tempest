@@ -371,25 +371,17 @@ class Sampler:
             )
             # Initialise progress bar
             self.pbar = ProgressBar(self.progress, initial=t0)
-            beta_hist = self.state._history["beta"]
-            calls_hist = self.state._history["calls"]
-            ess_hist = self.state._history["ess"]
-            logz_hist = self.state._history["logz"]
-            logl_hist = self.state._history["logl"]
-            accept_hist = self.state._history["acceptance"]
-            steps_hist = self.state._history["steps"]
-            eff_hist = self.state._history["efficiency"]
 
             self.pbar.update_stats(
                 dict(
-                    beta=beta_hist[-1] if len(beta_hist) > 0 else 0,
-                    calls=calls_hist[-1] if len(calls_hist) > 0 else 0,
-                    ESS=ess_hist[-1] if len(ess_hist) > 0 else 0,
-                    logZ=logz_hist[-1] if len(logz_hist) > 0 else 0,
-                    logL=np.mean(logl_hist[-1]) if len(logl_hist) > 0 else 0,
-                    acc=accept_hist[-1] if len(accept_hist) > 0 else 0,
-                    steps=steps_hist[-1] if len(steps_hist) > 0 else 0,
-                    eff=eff_hist[-1] if len(eff_hist) > 0 else 0,
+                    beta=self.state.get_last_history("beta", default=0),
+                    calls=self.state.get_last_history("calls", default=0),
+                    ESS=self.state.get_last_history("ess", default=0),
+                    logZ=self.state.get_last_history("logz", default=0),
+                    logL=np.mean(self.state.get_last_history("logl", default=[0])),
+                    acc=self.state.get_last_history("acceptance", default=0),
+                    steps=self.state.get_last_history("steps", default=0),
+                    eff=self.state.get_last_history("efficiency", default=0),
                     K=getattr(
                         self, "K", len(getattr(self, "means", np.atleast_2d([0])))
                     ),
@@ -514,15 +506,11 @@ class Sampler:
 
         # Return current state
         return {
-            "u": current["u"].copy() if current["u"] is not None else None,
-            "x": current["x"].copy() if current["x"] is not None else None,
-            "logl": current["logl"].copy() if current["logl"] is not None else None,
-            "assignments": current["assignments"].copy()
-            if current["assignments"] is not None
-            else None,
-            "blobs": current["blobs"].copy()
-            if self.have_blobs and current["blobs"] is not None
-            else None,
+            "u": current["u"],
+            "x": current["x"],
+            "logl": current["logl"],
+            "assignments": current["assignments"],
+            "blobs": current["blobs"] if self.have_blobs else None,
             "iter": current["iter"],
             "calls": current["calls"],
             "steps": current["steps"],
@@ -632,7 +620,7 @@ class Sampler:
             return
 
         blobs = (
-            self.state.get_current("blobs").copy()
+            self.state.get_current("blobs")
             if self.have_blobs and self.state.get_current("blobs") is not None
             else None
         )
@@ -841,7 +829,7 @@ class Sampler:
         self.pbar.update_iter()
 
         # Handle first iteration (no particles yet)
-        if len(self.state._history["beta"]) == 0:
+        if self.state.get_history_length() == 0:
             self.state.update_current(
                 {
                     "beta": 0.0,
@@ -1141,11 +1129,7 @@ class Sampler:
         temp_path = Path(path).with_suffix(".temp")
         state_dict = {
             "sampler": sampler_state,
-            "state_manager": {
-                "_current": self.state._current,
-                "_history": self.state._history,
-                "n_dim": self.state.n_dim,
-            },
+            "state_manager": self.state.to_dict(),
         }
 
         Path(path).parent.mkdir(exist_ok=True)
@@ -1175,11 +1159,7 @@ class Sampler:
             )
 
             # Load StateManager state
-            sm_state = state_dict["state_manager"]
-            self.state._current.update(sm_state["_current"])
-            self.state._history.update(sm_state["_history"])
-            self.state.n_dim = sm_state["n_dim"]
-            self.state._results_dict = None
+            self.state.update_from_dict(state_dict["state_manager"])
         else:
             # Old format (backward compatibility)
             # Filter out old 'particles' key and non-picklable items
