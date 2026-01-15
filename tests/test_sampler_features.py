@@ -45,7 +45,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             random_state=0,
         )
         sampler.run(n_total=128)
-        self.assertIsNotNone(sampler.logz)
+        self.assertIsNotNone(sampler.state.get_current("logz"))
 
     def test_metric_uss(self):
         """Test USS metric."""
@@ -62,7 +62,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             random_state=0,
         )
         sampler.run(n_total=128)
-        self.assertIsNotNone(sampler.logz)
+        self.assertIsNotNone(sampler.state.get_current("logz"))
 
     def test_sampler_tpcn(self):
         """Test t-preconditioned Crank-Nicolson sampler."""
@@ -79,7 +79,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             random_state=0,
         )
         sampler.run(n_total=128)
-        self.assertGreater(sampler.acceptance, 0.1)
+        self.assertGreater(sampler.state.get_current("acceptance"), 0.1)
 
     def test_sampler_rwm(self):
         """Test Random-walk Metropolis sampler."""
@@ -98,8 +98,8 @@ class SamplerFeaturesTestCase(unittest.TestCase):
         )
         try:
             sampler.run(n_total=128)
-            if hasattr(sampler, "acceptance") and sampler.acceptance is not None:
-                self.assertGreater(sampler.acceptance, 0.0)
+            if hasattr(sampler, "acceptance") and sampler.state.get_current("acceptance") is not None:
+                self.assertGreater(sampler.state.get_current("acceptance"), 0.0)
         except Exception as e:
             # RWM might not be fully supported yet, skip if it fails
             self.skipTest(f"RWM sampler not fully supported: {e}")

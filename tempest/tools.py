@@ -104,7 +104,7 @@ def compute_ess(logw: np.ndarray):
     -------
     ess : float
         Effective sample size divided by actual number
-        of particles (between 0 and 1)
+        of samples (between 0 and 1)
     """
     logw_max = np.max(logw)
     logw_normed = logw - logw_max

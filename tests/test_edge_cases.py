@@ -113,7 +113,7 @@ class EdgeCasesTestCase(unittest.TestCase):
             random_state=0,
         )
         sampler.run(n_total=256)
-        self.assertIsNotNone(sampler.logz)
+        self.assertIsNotNone(sampler.state.get_current("logz"))
     
     def test_small_n_effective(self):
         """Test with very small n_effective."""
@@ -150,7 +150,7 @@ class EdgeCasesTestCase(unittest.TestCase):
             random_state=0,
         )
         sampler.run(n_total=128)
-        self.assertIsNotNone(sampler.logz)
+        self.assertIsNotNone(sampler.state.get_current("logz"))
     
     def test_no_vectorization(self):
         """Test non-vectorized likelihood (processed one sample at a time)."""
@@ -191,7 +191,7 @@ class EdgeCasesTestCase(unittest.TestCase):
             random_state=0,
         )
         sampler.run(n_total=128)
-        self.assertIsNotNone(sampler.logz)
+        self.assertIsNotNone(sampler.state.get_current("logz"))
 
 
 if __name__ == '__main__':

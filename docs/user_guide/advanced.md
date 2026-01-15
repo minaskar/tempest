@@ -83,14 +83,8 @@ For fine-grained control, use the `sample()` method instead of `run()`:
 ```python
 sampler = tp.Sampler(prior=prior, likelihood=log_likelihood)
 
-# Initialize
-sampler.iter = 0
-sampler.calls = 0
-sampler.beta = 0.0
-sampler.logz = 0.0
-
 # Custom sampling loop
-while sampler.beta < 1.0:
+while sampler.state.get_current("beta") < 1.0:
     state = sampler.sample()
     
     # Access current state

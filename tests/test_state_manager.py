@@ -3,7 +3,6 @@ from pathlib import Path
 import numpy as np
 
 from tempest.state_manager import StateManager, CURRENT_STATE_KEYS, HISTORY_STATE_KEYS
-from tempest.particles import Particles
 
 
 class StateManagerBasicTestCase(unittest.TestCase):
@@ -276,115 +275,6 @@ class StateManagerWeightsTestCase(unittest.TestCase):
 
         self.assertNotEqual(logw_norm[0], logw_unnorm[0])
         self.assertAlmostEqual(np.exp(logw_norm).sum(), 1.0, places=5)
-
-
-class StateManagerCompareWithParticlesTestCase(unittest.TestCase):
-    """Compare StateManager output with Particles output."""
-
-    def setUp(self):
-        self.n_dim = 2
-        self.n_particles = 10
-        self.state = StateManager(self.n_dim)
-        self.particles = Particles(self.n_particles, self.n_dim)
-
-    def test_get_history_matches_particles(self):
-        """Test that get_history matches Particles.get."""
-        for i in range(3):
-            u = np.random.randn(self.n_particles, self.n_dim) + i
-            logl = np.random.randn(self.n_particles)
-            beta = i * 0.2
-            logz = -50.0 - i * 5
-
-            # Update StateManager
-            self.state.set_current("u", u)
-            self.state.set_current("logl", logl)
-            self.state.set_current("beta", beta)
-            self.state.set_current("logz", logz)
-            self.state.set_current("iter", i)
-            self.state.set_current("calls", 100)
-            self.state.set_current("steps", 10)
-            self.state.set_current("efficiency", 0.8)
-            self.state.set_current("ess", 0.9)
-            self.state.set_current("acceptance", 0.7)
-            self.state.commit_current_to_history()
-
-            # Update Particles (with scalars for per-iteration values)
-            blobs = np.zeros(self.n_particles)
-            self.particles.update(
-                {
-                    "u": u,
-                    "logl": logl,
-                    "logw": np.zeros(self.n_particles),
-                    "blobs": blobs,
-                    "iter": i,
-                    "logz": logz,
-                    "calls": 100,
-                    "steps": 10,
-                    "efficiency": 0.8,
-                    "ess": 0.9,
-                    "accept": 0.7,
-                    "beta": beta,
-                }
-            )
-
-        # Compare outputs
-        for flat in [False, True]:
-            sm_u = self.state.get_history("u", flat=flat)
-            p_u = self.particles.get("u", flat=flat)
-            np.testing.assert_array_equal(sm_u, p_u)
-
-            sm_logl = self.state.get_history("logl", flat=flat)
-            p_logl = self.particles.get("logl", flat=flat)
-            np.testing.assert_array_equal(sm_logl, p_logl)
-
-    def test_compute_logw_matches_particles(self):
-        """Test that compute_logw_and_logz matches Particles."""
-        for i in range(3):
-            logl = np.random.randn(self.n_particles)
-            beta = i * 0.2
-            logz = -50.0 - i * 5
-
-            # Update StateManager
-            self.state.set_current("logl", logl)
-            self.state.set_current("beta", beta)
-            self.state.set_current("logz", logz)
-            self.state.set_current("iter", i)
-            self.state.set_current("calls", 100)
-            self.state.set_current("steps", 10)
-            self.state.set_current("efficiency", 0.8)
-            self.state.set_current("ess", 0.9)
-            self.state.set_current("acceptance", 0.7)
-            self.state.commit_current_to_history()
-
-            # Update Particles (with scalars for per-iteration values)
-            blobs = np.zeros(self.n_particles)
-            self.particles.update(
-                {
-                    "u": np.random.randn(self.n_particles, self.n_dim),
-                    "logl": logl,
-                    "logw": np.zeros(self.n_particles),
-                    "blobs": blobs,
-                    "iter": i,
-                    "logz": logz,
-                    "calls": 100,
-                    "steps": 10,
-                    "efficiency": 0.8,
-                    "ess": 0.9,
-                    "accept": 0.7,
-                    "beta": beta,
-                }
-            )
-
-        for normalize in [True, False]:
-            sm_logw, sm_logz = self.state.compute_logw_and_logz(
-                1.0, normalize=normalize
-            )
-            p_logw, p_logz = self.particles.compute_logw_and_logz(
-                1.0, normalize=normalize
-            )
-
-            np.testing.assert_array_almost_equal(sm_logw, p_logw, decimal=10)
-            self.assertAlmostEqual(sm_logz, p_logz, places=10)
 
 
 class StateManagerPersistenceTestCase(unittest.TestCase):

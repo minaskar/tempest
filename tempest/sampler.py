@@ -15,7 +15,7 @@ from .tools import (
     effective_sample_size,
     unique_sample_size,
 )
-from .particles import Particles
+from .state_manager import StateManager
 from .cluster import HierarchicalGaussianMixture
 from .student import fit_mvstud
 
@@ -35,7 +35,7 @@ class Sampler:
         The number of effective particles (default is ``n_effective=512``). Higher values
         lead to more accurate results but also increase the computational cost.  This should be
         set to a value that is large enough to ensure that the target distribution is well
-        represented by the particles. The number of effective particles should be greater than
+        represented by the samples. The number of effective samples should be greater than
         the number of active particles. If ``n_effective=None``, the default value is ``n_effective=2*n_active``.
     n_active : int
         The number of active particles (default is ``n_active=256``). It must be smaller than ``n_effective``.
@@ -254,8 +254,8 @@ class Sampler:
         # Total ESS for termination
         self.n_total = None
 
-        # Particle manager
-        self.particles = Particles(n_active, n_dim)
+        # State manager
+        self.state = StateManager(n_dim)
 
         # Parallelism
         self.pool = pool
@@ -331,22 +331,6 @@ class Sampler:
         self.progress = None
         self.pbar = None
 
-        # Particle Ensemble State
-        self.u = None
-        self.x = None
-        self.logl = None
-        self.assignments = None
-        self.weights = None
-        self.blobs = None
-        self.acceptance = None
-        self.steps = None
-        self.efficiency = None
-        self.ess = None
-        self.beta = None
-        self.logz = None
-        self.calls = None
-        self.iter = None
-
     def run(
         self,
         n_total: int = 4096,
@@ -380,30 +364,44 @@ class Sampler:
         """
         if resume_state_path is not None:
             self.load_state(resume_state_path)
-            t0 = self.iter
+            t0 = (
+                int(self.state.get_current("iter"))
+                if self.state.get_current("iter") is not None
+                else 0
+            )
             # Initialise progress bar
             self.pbar = ProgressBar(self.progress, initial=t0)
+            beta_hist = self.state._history["beta"]
+            calls_hist = self.state._history["calls"]
+            ess_hist = self.state._history["ess"]
+            logz_hist = self.state._history["logz"]
+            logl_hist = self.state._history["logl"]
+            accept_hist = self.state._history["accept"]
+            steps_hist = self.state._history["steps"]
+            eff_hist = self.state._history["efficiency"]
+
             self.pbar.update_stats(
                 dict(
-                    beta=self.particles.get("beta", -1),
-                    calls=self.particles.get("calls", -1),
-                    ESS=self.particles.get("ess", -1),
-                    logZ=self.particles.get("logz", -1),
-                    logL=np.mean(self.particles.get("logl", -1)),
-                    acc=self.particles.get("accept", -1),
-                    steps=self.particles.get("steps", -1),
-                    eff=self.particles.get("efficiency", -1),
+                    beta=beta_hist[-1] if len(beta_hist) > 0 else 0,
+                    calls=calls_hist[-1] if len(calls_hist) > 0 else 0,
+                    ESS=ess_hist[-1] if len(ess_hist) > 0 else 0,
+                    logZ=logz_hist[-1] if len(logz_hist) > 0 else 0,
+                    logL=np.mean(logl_hist[-1]) if len(logl_hist) > 0 else 0,
+                    acc=accept_hist[-1] if len(accept_hist) > 0 else 0,
+                    steps=steps_hist[-1] if len(steps_hist) > 0 else 0,
+                    eff=eff_hist[-1] if len(eff_hist) > 0 else 0,
                     K=getattr(
                         self, "K", len(getattr(self, "means", np.atleast_2d([0])))
                     ),
                 )
             )
+            self.logz_err = None
         else:
             t0 = 0
-            self.iter = 0
-            self.calls = 0
-            self.beta = 0.0  # Initialize beta for first iteration
-            self.logz = 0.0
+            self.state.set_current("iter", 0)
+            self.state.set_current("calls", 0)
+            self.state.set_current("beta", 0.0)
+            self.state.set_current("logz", 0.0)
             # Run parameters
             self.progress = progress
 
@@ -412,7 +410,7 @@ class Sampler:
             self.pbar.update_stats(
                 dict(
                     beta=0.0,
-                    calls=self.calls,
+                    calls=0,
                     ESS=self.n_effective,
                     logZ=0.0,
                     logL=0.0,
@@ -430,7 +428,8 @@ class Sampler:
             self.sample(save_every=save_every, t0=t0)
 
         # Compute evidence
-        _, self.logz = self.particles.compute_logw_and_logz(1.0)
+        _, logz = self.state.compute_logw_and_logz(1.0)
+        self.state.set_current("logz", logz)
         self.logz_err = None
 
         # Save final state
@@ -477,9 +476,10 @@ class Sampler:
         """
         # Save state if requested
         if save_every is not None:
-            if (self.iter - t0) % int(save_every) == 0 and self.iter != t0:
+            iter_val = self.state.get_current("iter")
+            if (iter_val - t0) % int(save_every) == 0 and iter_val != t0:
                 self.save_state(
-                    self.output_dir / f"{self.output_label}_{self.iter}.state"
+                    self.output_dir / f"{self.output_label}_{iter_val}.state"
                 )
 
         # Choose next beta based on ESS of weights
@@ -495,53 +495,42 @@ class Sampler:
         self._mutate()
 
         # Update progress bar
+        current = self.state.get_current()
         self.pbar.update_stats(
             dict(
-                calls=self.calls,
-                beta=self.beta,
-                ESS=int(self.ess),
-                logZ=self.logz,
-                logL=np.mean(self.logl),
-                acc=self.acceptance,
-                steps=self.steps,
-                eff=self.efficiency,
+                calls=current["calls"],
+                beta=current["beta"],
+                ESS=int(current["ess"]),
+                logZ=current["logz"],
+                logL=np.mean(current["logl"]) if current["logl"] is not None else 0.0,
+                acc=current["acceptance"],
+                steps=current["steps"],
+                eff=current["efficiency"],
             )
         )
 
         # Save particles
-        self.particles.update(
-            {
-                "u": self.u,
-                "x": self.x,
-                "logl": self.logl,
-                "assignments": self.assignments,
-                "blobs": self.blobs,
-                "iter": self.iter,
-                "calls": self.calls,
-                "steps": self.steps,
-                "efficiency": self.efficiency,
-                "ess": self.ess,
-                "accept": self.acceptance,
-                "beta": self.beta,
-                "logz": self.logz,
-            }
-        )
+        self.state.commit_current_to_history()
 
         # Return current state
         return {
-            "u": self.u.copy(),
-            "x": self.x.copy(),
-            "logl": self.logl.copy(),
-            "assignments": self.assignments.copy(),
-            "blobs": self.blobs.copy() if self.have_blobs else None,
-            "iter": self.iter,
-            "calls": self.calls,
-            "steps": self.steps,
-            "efficiency": self.efficiency,
-            "ess": self.ess,
-            "accept": self.acceptance,
-            "beta": self.beta,
-            "logz": self.logz,
+            "u": current["u"].copy() if current["u"] is not None else None,
+            "x": current["x"].copy() if current["x"] is not None else None,
+            "logl": current["logl"].copy() if current["logl"] is not None else None,
+            "assignments": current["assignments"].copy()
+            if current["assignments"] is not None
+            else None,
+            "blobs": current["blobs"].copy()
+            if self.have_blobs and current["blobs"] is not None
+            else None,
+            "iter": current["iter"],
+            "calls": current["calls"],
+            "steps": current["steps"],
+            "efficiency": current["efficiency"],
+            "ess": current["ess"],
+            "accept": current["acceptance"],
+            "beta": current["beta"],
+            "logz": current["logz"],
         }
 
     def _not_termination(self):
@@ -558,7 +547,7 @@ class Sampler:
         termination : bool
             True if termination criterion is not satisfied.
         """
-        log_weights, _ = self.particles.compute_logw_and_logz(1.0)
+        log_weights, _ = self.state.compute_logw_and_logz(1.0)
 
         # If no particles yet (first iteration), continue
         if len(log_weights) == 0:
@@ -570,7 +559,8 @@ class Sampler:
         elif self.metric == "uss":
             ess = unique_sample_size(weights)
 
-        return 1.0 - self.beta >= self.BETA_TOLERANCE or ess < self.n_total
+        beta = self.state.get_current("beta")
+        return 1.0 - beta >= self.BETA_TOLERANCE or ess < self.n_total
 
     def _mutate(self):
         """
@@ -590,61 +580,79 @@ class Sampler:
             Dictionary containing the updated particles.
         """
         # During warmup (beta=0), draw fresh prior samples instead of MCMC
-        if self.beta == 0.0:
-            self.u = np.random.rand(self.n_active, self.n_dim)
-            self.x = np.array(
-                [self.prior_transform(self.u[i]) for i in range(self.n_active)]
+        beta = self.state.get_current("beta")
+        if beta == 0.0:
+            u = np.random.rand(self.n_active, self.n_dim)
+            x = np.array([self.prior_transform(u[i]) for i in range(self.n_active)])
+            logl, blobs = self._log_like(x)
+            assignments = np.zeros(self.n_active, dtype=int)
+            calls = self.state.get_current("calls") + self.n_active
+
+            self.state.update_current(
+                {
+                    "u": u,
+                    "x": x,
+                    "logl": logl,
+                    "blobs": blobs,
+                    "assignments": assignments,
+                    "calls": calls,
+                    "steps": 1,
+                    "acceptance": 1.0,
+                    "efficiency": 1.0,
+                }
             )
-            self.logl, self.blobs = self._log_like(self.x)
-            self.assignments = np.zeros(self.n_active, dtype=int)
-            self.calls += self.n_active
-            self.steps = 1
-            self.acceptance = 1.0
-            self.efficiency = 1.0
 
             # Resample prior particles with infinite likelihoods
-            inf_logl_mask = np.isinf(self.logl)
+            inf_logl_mask = np.isinf(logl)
             if np.any(inf_logl_mask):
-                all_idx = np.arange(len(self.x))
+                all_idx = np.arange(len(x))
                 infinite_idx = all_idx[inf_logl_mask]
                 finite_idx = all_idx[~inf_logl_mask]
                 if len(finite_idx) > 0:
                     idx = np.random.choice(
                         finite_idx, size=len(infinite_idx), replace=True
                     )
-                    self.x[infinite_idx] = self.x[idx]
-                    self.u[infinite_idx] = self.u[idx]
-                    self.logl[infinite_idx] = self.logl[idx]
+                    x[infinite_idx] = x[idx]
+                    u[infinite_idx] = u[idx]
+                    logl[infinite_idx] = logl[idx]
                     if self.have_blobs:
-                        self.blobs[infinite_idx] = self.blobs[idx]
+                        blobs[infinite_idx] = blobs[idx]
+
+                    self.state.set_current("x", x)
+                    self.state.set_current("u", u)
+                    self.state.set_current("logl", logl)
+                    if self.have_blobs:
+                        self.state.set_current("blobs", blobs)
 
                 # Correct logZ for fraction of prior with finite likelihood support
                 n_finite = len(finite_idx)
-                n_total = len(self.logl)
-                self.logz += np.log(n_finite / n_total)
+                n_total = len(logl)
+                logz = self.state.get_current("logz") + np.log(n_finite / n_total)
+                self.state.set_current("logz", logz)
             return
 
-        if self.have_blobs:
-            blobs = self.blobs.copy()
-        else:
-            blobs = None
+        blobs = (
+            self.state.get_current("blobs").copy()
+            if self.have_blobs and self.state.get_current("blobs") is not None
+            else None
+        )
 
         (
-            self.u,
-            self.x,
-            self.logl,
+            u,
+            x,
+            logl,
             blobs,
-            self.efficiency,
-            self.acceptance,
-            self.steps,
-            calls,
+            efficiency,
+            acceptance,
+            steps,
+            mcmc_calls,
         ) = parallel_mcmc(
-            u=self.u,
-            x=self.x,
-            logl=self.logl,
+            u=self.state.get_current("u"),
+            x=self.state.get_current("x"),
+            logl=self.state.get_current("logl"),
             blobs=blobs,
-            assignments=self.assignments,
-            beta=self.beta,
+            assignments=self.state.get_current("assignments"),
+            beta=self.state.get_current("beta"),
             means=self.means,
             covariances=self.covariances,
             degrees_of_freedom=self.degrees_of_freedom,
@@ -659,9 +667,22 @@ class Sampler:
             verbose=True,
         )
 
+        self.state.update_current(
+            {
+                "u": u,
+                "x": x,
+                "logl": logl,
+                "efficiency": efficiency,
+                "acceptance": acceptance,
+                "steps": steps,
+            }
+        )
+
         if self.have_blobs:
-            self.blobs = blobs.copy()
-        self.calls += calls
+            self.state.set_current("blobs", blobs.copy())
+
+        calls = self.state.get_current("calls") + mcmc_calls
+        self.state.set_current("calls", calls)
 
     def _train(self):
         """
@@ -678,20 +699,24 @@ class Sampler:
             Dictionary containing the updated particles.
         """
         # Skip training at beta=0 (mutation draws fresh prior samples)
-        if self.beta == 0.0:
+        beta_val = self.state.get_current("beta")
+        if beta_val == 0.0:
             return
 
-        if self.clustering and (self.iter % self.cluster_every == 0 or self.iter == 0):
+        iter_val = self.state.get_current("iter")
+        if self.clustering and (iter_val % self.cluster_every == 0 or iter_val == 0):
             # Fit clustering model
-            self.clusterer.fit(self.u, self.weights)
-            labels = self.clusterer.predict(self.u)
+            u = self.state.get_current("u")
+            weights = self.state.get_current("weights")
+            self.clusterer.fit(u, weights)
+            labels = self.clusterer.predict(u)
             means = []
             covariances = []
             degrees_of_freedom = []
             for label in range(np.unique(labels).shape[0]):
                 idx = np.where(labels == label)[0]
-                u_idx = self.u[idx]
-                weights_idx = self.weights[idx]
+                u_idx = u[idx]
+                weights_idx = weights[idx]
                 weights_idx /= np.sum(weights_idx)
                 u_idx_resampled = u_idx[
                     np.random.choice(
@@ -713,17 +738,19 @@ class Sampler:
             self.degrees_of_freedom = np.array(degrees_of_freedom)
             self.K = self.means.shape[0]
         elif self.clustering and not (
-            self.iter % self.cluster_every == 0 or self.iter == 0
+            iter_val % self.cluster_every == 0 or iter_val == 0
         ):
             # Use previous clustering
             pass
         else:
-            u_resampled = self.u[
+            u = self.state.get_current("u")
+            weights = self.state.get_current("weights")
+            u_resampled = u[
                 np.random.choice(
-                    np.arange(len(self.weights)),
+                    np.arange(len(weights)),
                     size=self.n_effective * 4,
                     replace=True,
-                    p=self.weights,
+                    p=weights,
                 )
             ]
             mean, covariance, dof = fit_mvstud(u_resampled)
@@ -753,15 +780,16 @@ class Sampler:
             Dictionary containing the updated particles.
         """
         # Skip resampling during warmup (beta=0) - will draw fresh prior samples
-        if self.beta == 0.0:
-            self.assignments = np.zeros(self.n_active, dtype=int)
+        beta = self.state.get_current("beta")
+        if beta == 0.0:
+            self.state.set_current("assignments", np.zeros(self.n_active, dtype=int))
             return
 
-        u = self.u
-        x = self.x
-        logl = self.logl
-        weights = self.weights
-        blobs = self.blobs
+        u = self.state.get_current("u")
+        x = self.state.get_current("x")
+        logl = self.state.get_current("logl")
+        weights = self.state.get_current("weights")
+        blobs = self.state.get_current("blobs")
 
         if self.resample == "mult":
             idx_resampled = np.random.choice(
@@ -770,16 +798,20 @@ class Sampler:
         elif self.resample == "syst":
             idx_resampled = systematic_resample(self.n_active, weights=weights)
 
-        self.u = u[idx_resampled]
-        self.x = x[idx_resampled]
-        self.logl = logl[idx_resampled]
-        if self.have_blobs:
-            self.blobs = blobs[idx_resampled]
+        u_resampled = u[idx_resampled]
+        self.state.update_current(
+            {
+                "u": u_resampled,
+                "x": x[idx_resampled],
+                "logl": logl[idx_resampled],
+                "assignments": self.clusterer.predict(u_resampled)
+                if self.clustering
+                else np.zeros(self.n_active, dtype=int),
+            }
+        )
 
-        if self.clustering:
-            self.assignments = self.clusterer.predict(self.u)
-        else:
-            self.assignments = np.zeros(self.n_active, dtype=int)
+        if self.have_blobs:
+            self.state.set_current("blobs", blobs[idx_resampled])
 
     def _reweight(self):
         """
@@ -796,26 +828,29 @@ class Sampler:
             Dictionary containing the updated particles.
         """
         # Update iteration index
-        self.iter += 1
+        iter_val = self.state.get_current("iter") + 1
+        self.state.set_current("iter", iter_val)
         self.pbar.update_iter()
 
         # Handle first iteration (no particles yet)
-        if len(self.particles.past.get("beta", [])) == 0:
-            self.beta = 0.0
-            self.logz = 0.0
-            self.ess = self.n_effective
-            self.weights = np.ones(self.n_active) / self.n_active
-            self.pbar.update_stats(
-                dict(beta=self.beta, ESS=int(self.ess), logZ=self.logz)
+        if len(self.state._history["beta"]) == 0:
+            self.state.update_current(
+                {
+                    "beta": 0.0,
+                    "logz": 0.0,
+                    "ess": self.n_effective,
+                    "weights": np.ones(self.n_active) / self.n_active,
+                }
             )
+            self.pbar.update_stats(dict(beta=0.0, ESS=int(self.n_effective), logZ=0.0))
             return
 
-        beta_prev = self.beta
+        beta_prev = self.state.get_current("beta")
         beta_max = 1.0
         beta_min = np.copy(beta_prev)
 
         def get_weights_and_ess(beta):
-            logw, _ = self.particles.compute_logw_and_logz(beta)
+            logw, _ = self.state.compute_logw_and_logz(beta)
             weights = np.exp(logw - np.max(logw))
             if self.metric == "ess":
                 ess_est = effective_sample_size(weights)
@@ -829,13 +864,13 @@ class Sampler:
         if ess_est_prev <= self.n_effective:
             beta = beta_prev
             weights = weights_prev
-            logz = self.logz
+            logz = self.state.get_current("logz")
             ess_est = ess_est_prev
             self.pbar.update_stats(dict(beta=beta, ESS=int(ess_est_prev), logZ=logz))
         elif ess_est_max >= self.n_effective:
             beta = beta_max
             weights = weights_max
-            _, logz = self.particles.compute_logw_and_logz(beta)
+            _, logz = self.state.compute_logw_and_logz(beta)
             ess_est = ess_est_max
             self.pbar.update_stats(dict(beta=beta, ESS=int(ess_est_max), logZ=logz))
         else:
@@ -849,7 +884,7 @@ class Sampler:
                     < self.ESS_TOLERANCE * self.n_effective
                     or beta == 1.0
                 ):
-                    _, logz = self.particles.compute_logw_and_logz(beta)
+                    _, logz = self.state.compute_logw_and_logz(beta)
                     self.pbar.update_stats(dict(beta=beta, ESS=int(ess_est), logZ=logz))
                     break
                 elif ess_est < self.n_effective:
@@ -857,7 +892,7 @@ class Sampler:
                 else:
                     beta_min = beta
 
-        logw, _ = self.particles.compute_logw_and_logz(beta)
+        logw, _ = self.state.compute_logw_and_logz(beta)
         weights = np.exp(logw - np.max(logw))
         weights /= np.sum(weights)
 
@@ -881,15 +916,26 @@ class Sampler:
         idx, weights = trim_weights(
             np.arange(len(weights)), weights, ess=self.TRIM_ESS, bins=self.TRIM_BINS
         )
-        self.u = self.particles.get("u", index=None, flat=True)[idx]
-        self.x = self.particles.get("x", index=None, flat=True)[idx]
-        self.logl = self.particles.get("logl", index=None, flat=True)[idx]
+        u = self.state.get_history("u", flat=True)[idx]
+        x = self.state.get_history("x", flat=True)[idx]
+        logl = self.state.get_history("logl", flat=True)[idx]
+        blobs = (
+            self.state.get_history("blobs", flat=True)[idx] if self.have_blobs else None
+        )
+
+        self.state.update_current(
+            {
+                "u": u,
+                "x": x,
+                "logl": logl,
+                "logz": logz,
+                "beta": beta,
+                "weights": weights,
+                "ess": ess_est,
+            }
+        )
         if self.have_blobs:
-            self.blobs = self.particles.get("blobs", index=None, flat=True)[idx]
-        self.logz = logz
-        self.beta = beta
-        self.weights = weights
-        self.ess = ess_est
+            self.state.set_current("blobs", blobs)
 
         if self.n_boost is not None:
             _, posterior_ess = get_weights_and_ess(1.0)
@@ -969,9 +1015,10 @@ class Sampler:
 
     def evidence(self):
         """
-        Return the log evidence estimate and error.
+        Return log evidence estimate and error.
         """
-        return self.logz, self.logz_err
+        logz = self.state.get_current("logz")
+        return logz, getattr(self, "logz_err", None)
 
     def __getstate__(self):
         """
@@ -1028,11 +1075,11 @@ class Sampler:
         if return_blobs and not self.have_blobs:
             raise ValueError("No blobs available.")
 
-        samples = self.particles.get("x", flat=True)
-        logl = self.particles.get("logl", flat=True)
+        samples = self.state.get_history("x", flat=True)
+        logl = self.state.get_history("logl", flat=True)
         if return_blobs:
-            blobs = self.particles.get("blobs", flat=True)
-        logw, _ = self.particles.compute_logw_and_logz(1.0)
+            blobs = self.state.get_history("blobs", flat=True)
+        logw, _ = self.state.compute_logw_and_logz(1.0)
         weights = np.exp(logw)
 
         if trim_importance_weights:
@@ -1079,7 +1126,7 @@ class Sampler:
         results : dict
             Dictionary containing the results.
         """
-        return self.particles.compute_results()
+        return self.state.compute_results()
 
     def save_state(self, path: Union[str, Path]):
         """Save current state of sampler to file.
@@ -1090,20 +1137,28 @@ class Sampler:
             Path to save state.
         """
         print(f"Saving PS state to {path}")
-        Path(path).parent.mkdir(exist_ok=True)
-        temp_path = Path(path).with_suffix(".temp")
-        with open(temp_path, "wb") as f:
-            state = self.__dict__.copy()
-            del state["pbar"]  # Cannot be pickled
-            try:
-                # deal with pool
-                if state["pool"] is not None:
-                    del state["pool"]  # remove pool
-                    del state["distribute"]  # remove `pool.map` function hook
-            except BaseException as e:
-                print(e)
 
-            dill.dump(file=f, obj=state)
+        # Save sampler-specific attributes (exclude non-picklable items)
+        sampler_state = {
+            k: v
+            for k, v in self.__dict__.items()
+            if k not in ["pbar", "pool", "distribute", "state"]
+        }
+
+        # Save StateManager state
+        temp_path = Path(path).with_suffix(".temp")
+        state_dict = {
+            "sampler": sampler_state,
+            "state_manager": {
+                "_current": self.state._current,
+                "_history": self.state._history,
+                "n_dim": self.state.n_dim,
+            },
+        }
+
+        Path(path).parent.mkdir(exist_ok=True)
+        with open(temp_path, "wb") as f:
+            dill.dump(file=f, obj=state_dict)
             f.flush()
             os.fsync(f.fileno())
 
@@ -1118,5 +1173,27 @@ class Sampler:
             Path from which to load state.
         """
         with open(path, "rb") as f:
-            state = dill.load(file=f)
-        self.__dict__ = {**self.__dict__, **state}
+            state_dict = dill.load(file=f)
+
+        # Handle both old and new format
+        if "sampler" in state_dict and "state_manager" in state_dict:
+            # New format
+            self.__dict__.update(
+                {k: v for k, v in state_dict["sampler"].items() if k not in ["state"]}
+            )
+
+            # Load StateManager state
+            sm_state = state_dict["state_manager"]
+            self.state._current.update(sm_state["_current"])
+            self.state._history.update(sm_state["_history"])
+            self.state.n_dim = sm_state["n_dim"]
+            self.state._results_dict = None
+        else:
+            # Old format (backward compatibility)
+            # Filter out old 'particles' key and non-picklable items
+            filtered_state = {
+                k: v
+                for k, v in state_dict.items()
+                if k not in ["particles", "pbar", "pool", "distribute"]
+            }
+            self.__dict__.update(filtered_state)
