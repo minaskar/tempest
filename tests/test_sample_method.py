@@ -90,7 +90,7 @@ class SampleMethodTestCase(unittest.TestCase):
             "steps",
             "efficiency",
             "ess",
-            "accept",
+            "acceptance",
             "beta",
             "logz",
         ]

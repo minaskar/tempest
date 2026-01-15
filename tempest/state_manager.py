@@ -35,18 +35,10 @@ HISTORY_STATE_KEYS = frozenset(
         "steps",
         "efficiency",
         "ess",
-        "accept",
+        "acceptance",
         "beta",
     }
 )
-
-CURRENT_TO_HISTORY_MAP = {
-    "acceptance": "accept",
-}
-
-HISTORY_TO_CURRENT_MAP = {
-    "accept": "acceptance",
-}
 
 
 class StateManager:
@@ -204,20 +196,13 @@ class StateManager:
 
         Notes
         -----
-        Maps current state keys to history state keys using CURRENT_TO_HISTORY_MAP.
         Values of None are stored as is. Keys not in history are skipped.
         """
         for current_key in CURRENT_STATE_KEYS:
-            if current_key in CURRENT_TO_HISTORY_MAP:
-                history_key = CURRENT_TO_HISTORY_MAP[current_key]
-            elif current_key in HISTORY_STATE_KEYS:
-                history_key = current_key
-            else:
-                continue
-
-            value = self._current[current_key]
-            if value is not None:
-                self._history[history_key].append(self._ensure_copy(value))
+            if current_key in HISTORY_STATE_KEYS:
+                value = self._current[current_key]
+                if value is not None:
+                    self._history[current_key].append(self._ensure_copy(value))
         self._results_dict = None
 
     def compute_logw_and_logz(self, beta_final: float = 1.0, normalize: bool = True):

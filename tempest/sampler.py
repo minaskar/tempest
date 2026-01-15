@@ -376,7 +376,7 @@ class Sampler:
             ess_hist = self.state._history["ess"]
             logz_hist = self.state._history["logz"]
             logl_hist = self.state._history["logl"]
-            accept_hist = self.state._history["accept"]
+            accept_hist = self.state._history["acceptance"]
             steps_hist = self.state._history["steps"]
             eff_hist = self.state._history["efficiency"]
 
@@ -528,7 +528,7 @@ class Sampler:
             "steps": current["steps"],
             "efficiency": current["efficiency"],
             "ess": current["ess"],
-            "accept": current["acceptance"],
+            "acceptance": current["acceptance"],
             "beta": current["beta"],
             "logz": current["logz"],
         }
