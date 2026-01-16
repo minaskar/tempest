@@ -1,7 +1,306 @@
 import numpy as np
 from typing import Callable, Optional, Tuple
+from abc import ABC, abstractmethod
 
 from .modes import ModeStatistics
+
+
+class _BaseMCMCRunner(ABC):
+    """Base class for MCMC runners with common infrastructure."""
+
+    def __init__(
+        self,
+        u: np.ndarray,
+        x: np.ndarray,
+        logl: np.ndarray,
+        blobs: Optional[np.ndarray],
+        assignments: np.ndarray,
+        beta: float,
+        mode_stats: ModeStatistics,
+        log_likelihood: Callable[[np.ndarray], Tuple[np.ndarray, Optional[np.ndarray]]],
+        prior_transform: Callable[[np.ndarray], np.ndarray],
+        progress_bar: Optional[Callable] = None,
+        n_steps: int = 100,
+        n_max: int = 1000,
+        periodic: Optional[np.ndarray] = None,
+        reflective: Optional[np.ndarray] = None,
+        verbose: bool = True,
+    ):
+        self.beta = beta
+        self.mode_stats = mode_stats
+        self.log_likelihood = log_likelihood
+        self.prior_transform = prior_transform
+        self.progress_bar = progress_bar
+        self.n_steps = n_steps
+        self.n_max = n_max
+        self.periodic = periodic
+        self.reflective = reflective
+        self.verbose = verbose
+
+        # Clone state variables to avoid modifying inputs
+        self.u = u.copy()
+        self.x = x.copy()
+        self.logl = logl.copy()
+        self.blobs = blobs.copy() if blobs is not None else None
+        self.assignments = assignments.copy()
+
+        self.n_walkers, self.n_dim = x.shape
+        self.n_clusters = mode_stats.K
+        self.n_calls = 0
+
+        # Initialize sigma
+        self.sigma_0 = 2.38 / np.sqrt(self.n_dim)
+        self.sigmas = self._initialize_sigmas()
+
+        # Convergence tracking
+        self.best_average_logl = np.mean(logl)
+        self.cnt = 0
+        self.iteration = 0
+
+    @abstractmethod
+    def _initialize_sigmas(self) -> np.ndarray:
+        """Initialize step sizes for each cluster."""
+        pass
+
+    @abstractmethod
+    def _propose(self, k: int) -> np.ndarray:
+        """Generate proposal for walker k."""
+        pass
+
+    @abstractmethod
+    def _compute_acceptance_factor(
+        self, u_prime: np.ndarray, logl_prime: np.ndarray
+    ) -> np.ndarray:
+        """Compute acceptance probability factor (beyond likelihood ratio)."""
+        pass
+
+    @abstractmethod
+    def _adapt_sigma(self, c: int, mean_accept: float):
+        """Adapt step size for cluster c."""
+        pass
+
+    def _evaluate_likelihood(
+        self, x_prime: np.ndarray
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        """Evaluate log-likelihood for proposals."""
+        if self.blobs is not None:
+            logl_prime, blobs_prime = self.log_likelihood(x_prime)
+        else:
+            logl_prime, _ = self.log_likelihood(x_prime)
+            blobs_prime = None
+        self.n_calls += self.n_walkers
+        return logl_prime, blobs_prime
+
+    def _update_progress_bar(self, alpha: np.ndarray):
+        """Update progress bar with current statistics."""
+        if self.progress_bar is not None and self.verbose:
+            progress_info = {
+                "calls": self.progress_bar.info.get("calls", 0) + self.n_walkers,
+                "acc": alpha.mean(),
+                "steps": self.iteration,
+                "logL": self.logl.mean(),
+                "eff": self.sigmas.mean() / self.sigma_0,
+            }
+            self.progress_bar.update_stats(progress_info)
+
+    def _check_convergence(self) -> bool:
+        """Check if MCMC has converged."""
+        average_logl = self.logl.mean()
+        if average_logl > self.best_average_logl:
+            self.cnt = 0
+            self.best_average_logl = average_logl
+        else:
+            self.cnt += 1
+            threshold = self.n_steps * (self.sigma_0 / np.median(self.sigmas)) ** 2.0
+            if self.cnt >= threshold:
+                return True
+
+        if self.iteration >= self.n_max:
+            return True
+
+        return False
+
+    def run(
+        self,
+    ) -> Tuple[
+        np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray], float, float, int, int
+    ]:
+        """Run MCMC sampling."""
+        while True:
+            self.iteration += 1
+
+            # Generate proposals for all walkers
+            u_prime = np.empty_like(self.u)
+            for k in range(self.n_walkers):
+                u_prime[k] = self._propose(k)
+
+            # Transform to x space
+            x_prime = np.array([self.prior_transform(u_p) for u_p in u_prime])
+
+            # Evaluate log-likelihood
+            logl_prime, blobs_prime = self._evaluate_likelihood(x_prime)
+
+            # Compute acceptance probability
+            alpha = self._compute_acceptance_factor(u_prime, logl_prime)
+            alpha = np.exp(self.beta * (logl_prime - self.logl) + alpha)
+            alpha = np.minimum(1.0, alpha)
+            alpha = np.nan_to_num(alpha, nan=0.0)
+
+            # Metropolis criterion
+            u_rand = np.random.rand(self.n_walkers)
+            mask_accept = u_rand < alpha
+
+            # Update accepted walkers
+            self.u[mask_accept] = u_prime[mask_accept]
+            self.x[mask_accept] = x_prime[mask_accept]
+            self.logl[mask_accept] = logl_prime[mask_accept]
+            if self.blobs is not None:
+                self.blobs[mask_accept] = blobs_prime[mask_accept]
+
+            # Adapt sigmas for each cluster
+            for c in range(self.n_clusters):
+                mask_cluster = self.assignments == c
+                if not np.any(mask_cluster):
+                    continue
+
+                mean_accept = alpha[mask_cluster].mean()
+                self._adapt_sigma(c, mean_accept)
+
+            # Update progress bar
+            self._update_progress_bar(alpha)
+
+            # Check convergence
+            if self._check_convergence():
+                break
+
+        average_efficiency = self.sigmas.mean() / self.sigma_0
+        average_acceptance = alpha.mean()
+
+        return (
+            self.u,
+            self.x,
+            self.logl,
+            self.blobs,
+            average_efficiency,
+            average_acceptance,
+            self.iteration,
+            self.n_calls,
+        )
+
+
+class _TPCNRunner(_BaseMCMCRunner):
+    """t-preconditioned Crank-Nicolson MCMC runner."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Extract mode statistics
+        self.means = self.mode_stats.means
+        self.degrees_of_freedom = self.mode_stats.degrees_of_freedom
+        self.inv_covs = self.mode_stats.inv_covariances
+        self.chol_covs = self.mode_stats.chol_covariances
+
+    def _initialize_sigmas(self) -> np.ndarray:
+        return np.ones(self.n_clusters) * np.minimum(self.sigma_0, 0.99)
+
+    def _propose(self, k: int) -> np.ndarray:
+        """Generate t-preconditioned Crank-Nicolson proposal for walker k."""
+        mu = self.means[self.assignments[k]]
+        diff = self.u[k] - mu
+        chol_cov = self.chol_covs[self.assignments[k]]
+        sigma = self.sigmas[self.assignments[k]]
+
+        # Compute scaling factor s
+        dot_product = diff @ self.inv_covs[self.assignments[k]] @ diff
+        gamma_shape = (self.n_dim + self.degrees_of_freedom[self.assignments[k]]) / 2
+        gamma_scale = 2.0 / (self.degrees_of_freedom[self.assignments[k]] + dot_product)
+        s = 1.0 / np.random.gamma(shape=gamma_shape, scale=gamma_scale)
+
+        # Generate proposal with boundary checking
+        while True:
+            proposal = (
+                mu
+                + np.sqrt(1.0 - sigma**2.0) * diff
+                + sigma * np.sqrt(s) * chol_cov @ np.random.randn(self.n_dim)
+            )
+            proposal = apply_boundary_conditions(
+                proposal, self.periodic, self.reflective
+            )
+            if check_bounds(proposal, self.periodic, self.reflective):
+                return proposal
+
+    def _compute_acceptance_factor(
+        self, u_prime: np.ndarray, logl_prime: np.ndarray
+    ) -> np.ndarray:
+        """Compute Student-t density ratio for TPCN."""
+        means_assigned = self.means[self.assignments]
+
+        # Current state
+        diff = self.u - means_assigned
+        dot_products = np.einsum(
+            "ij,ijk,ik->i", diff, self.inv_covs[self.assignments], diff
+        )
+        B = (
+            -0.5
+            * (self.n_dim + self.degrees_of_freedom[self.assignments])
+            * np.log(1 + dot_products / self.degrees_of_freedom[self.assignments])
+        )
+
+        # Proposed state
+        diff_prime = u_prime - means_assigned
+        dot_prime = np.einsum(
+            "ij,ijk,ik->i", diff_prime, self.inv_covs[self.assignments], diff_prime
+        )
+        A = (
+            -0.5
+            * (self.n_dim + self.degrees_of_freedom[self.assignments])
+            * np.log(1 + dot_prime / self.degrees_of_freedom[self.assignments])
+        )
+
+        return -A + B
+
+    def _adapt_sigma(self, c: int, mean_accept: float):
+        """Adapt step size for cluster c with clipping."""
+        adaptation_rate = 1.0 / (self.iteration + 1) ** 1.0
+        self.sigmas[c] = np.clip(
+            self.sigmas[c] + adaptation_rate * (mean_accept - 0.234),
+            0,
+            min(self.sigma_0, 0.99),
+        )
+
+
+class _RWMRunner(_BaseMCMCRunner):
+    """Random Walk Metropolis MCMC runner."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.chol_covs = self.mode_stats.chol_covariances
+
+    def _initialize_sigmas(self) -> np.ndarray:
+        return np.ones(self.n_clusters) * self.sigma_0
+
+    def _propose(self, k: int) -> np.ndarray:
+        """Generate random walk Metropolis proposal for walker k."""
+        chol_cov = self.chol_covs[self.assignments[k]]
+        sigma = self.sigmas[self.assignments[k]]
+
+        while True:
+            proposal = self.u[k] + sigma * chol_cov @ np.random.randn(self.n_dim)
+            proposal = apply_boundary_conditions(
+                proposal, self.periodic, self.reflective
+            )
+            if check_bounds(proposal, self.periodic, self.reflective):
+                return proposal
+
+    def _compute_acceptance_factor(
+        self, u_prime: np.ndarray, logl_prime: np.ndarray
+    ) -> np.ndarray:
+        """RWM has symmetric proposal, so no correction factor."""
+        return np.zeros(self.n_walkers)
+
+    def _adapt_sigma(self, c: int, mean_accept: float):
+        """Adapt step size for cluster c."""
+        adaptation_rate = 1.0 / (self.iteration + 1)
+        self.sigmas[c] = self.sigmas[c] + adaptation_rate * (mean_accept - 0.234)
 
 
 def apply_boundary_conditions(
@@ -250,159 +549,24 @@ def parallel_t_preconditioned_crank_nicolson(
     Tuple containing updated u, x, logl, blobs, average efficiency, average acceptance rate,
     number of iterations, and number of likelihood calls.
     """
-    n_calls = 0
-    n_walkers, n_dim = x.shape
-    n_clusters = mode_stats.K
-
-    # Clone state variables to avoid modifying inputs
-    u = u.copy()
-    x = x.copy()
-    logl = logl.copy()
-    if blobs is not None:
-        blobs = blobs.copy()
-    assignments = assignments.copy()
-
-    # Extract mode statistics (already precomputed in ModeStatistics)
-    means = mode_stats.means
-    degrees_of_freedom = mode_stats.degrees_of_freedom
-    inv_covs = mode_stats.inv_covariances
-    chol_covs = mode_stats.chol_covariances
-
-    # Precompute sigmas
-    sigma_0 = 2.38 / np.sqrt(n_dim)
-    sigmas = np.ones(n_clusters) * np.minimum(sigma_0, 0.99)
-
-    best_average_logl = np.mean(logl)
-    cnt = 0
-    iteration = 0
-
-    while True:
-        iteration += 1
-
-        # Compute differences for all walkers
-        means_assigned = means[assignments]  # Shape: [n_walkers, n_dim]
-        diff = u - means_assigned  # Shape: [n_walkers, n_dim]
-
-        # Compute scaling factors s for all walkers
-        dot_products = np.einsum("ij,ijk,ik->i", diff, inv_covs[assignments], diff)
-        gamma_shape = (n_dim + degrees_of_freedom[assignments]) / 2
-        gamma_scale = 2.0 / (degrees_of_freedom[assignments] + dot_products)
-        s = 1.0 / np.random.gamma(shape=gamma_shape, scale=gamma_scale)
-
-        # Initialize u_prime
-        u_prime = np.empty_like(u)
-
-        # Propose new u_prime for each walker, ensuring all components are within [0, 1]
-        for k in range(n_walkers):
-            mu = means[assignments[k]]
-            chol_cov = chol_covs[assignments[k]]
-            sigma = sigmas[assignments[k]]
-            while True:
-                proposal = (
-                    mu
-                    + np.sqrt(1.0 - sigma**2.0) * diff[k]
-                    + sigma * np.sqrt(s[k]) * chol_cov @ np.random.randn(n_dim)
-                )
-                # Apply boundary conditions for periodic/reflective parameters
-                proposal = apply_boundary_conditions(proposal, periodic, reflective)
-                if check_bounds(proposal, periodic, reflective):
-                    u_prime[k] = proposal
-                    break
-
-        # Transform to x space
-        x_prime = np.array([prior_transform(u_p) for u_p in u_prime])
-
-        # Evaluate log-likelihood
-        if blobs is not None:
-            logl_prime, blobs_prime = log_likelihood(x_prime)
-        else:
-            logl_prime, _ = log_likelihood(x_prime)
-            blobs_prime = None
-
-        n_calls += n_walkers
-
-        # Compute Metropolis acceptance factors
-        diff_prime = u_prime - means_assigned  # Shape: [n_walkers, n_dim]
-        dot_prime = np.einsum(
-            "ij,ijk,ik->i", diff_prime, inv_covs[assignments], diff_prime
-        )
-        A = (
-            -0.5
-            * (n_dim + degrees_of_freedom[assignments])
-            * np.log(1 + dot_prime / degrees_of_freedom[assignments])
-        )
-        B = (
-            -0.5
-            * (n_dim + degrees_of_freedom[assignments])
-            * np.log(1 + dot_products / degrees_of_freedom[assignments])
-        )
-
-        # Calculate acceptance probability
-        alpha = np.exp(beta * (logl_prime - logl) - A + B)
-        alpha = np.minimum(1.0, alpha)
-        alpha = np.nan_to_num(alpha, nan=0.0)
-
-        # Metropolis criterion
-        u_rand = np.random.rand(n_walkers)
-        mask_accept = u_rand < alpha
-
-        # Update accepted walkers
-        u[mask_accept] = u_prime[mask_accept]
-        x[mask_accept] = x_prime[mask_accept]
-        logl[mask_accept] = logl_prime[mask_accept]
-        if blobs is not None:
-            blobs[mask_accept] = blobs_prime[mask_accept]
-
-        # Adapt sigmas and means
-        for c in range(n_clusters):
-            mask_cluster = assignments == c
-            if not np.any(mask_cluster):
-                continue
-
-            mean_accept = alpha[mask_cluster].mean()
-            adaptation_rate = 1.0 / (iteration + 1) ** 1.0  # r = 1.0
-
-            # Update sigma with diminishing adaptation
-            sigmas[c] = np.clip(
-                sigmas[c] + adaptation_rate * (mean_accept - 0.234),
-                0,
-                min(sigma_0, 0.99),
-            )
-
-            # Update mean with moving average
-            # mean_update = u[mask_cluster].mean(axis=0)
-            # means[c] += adaptation_rate * (mean_update - means[c])
-
-        # Update progress bar if provided
-        if progress_bar is not None and verbose:
-            progress_info = {
-                "calls": progress_bar.info.get("calls", 0) + n_walkers,
-                "acc": alpha.mean(),
-                "steps": iteration,
-                "logL": logl.mean(),
-                "eff": sigmas.mean() / sigma_0,
-            }
-            progress_bar.update_stats(progress_info)
-
-        # Check for convergence based on log-likelihood improvement
-        average_logl = logl.mean()
-        if average_logl > best_average_logl:
-            cnt = 0
-            best_average_logl = average_logl
-        else:
-            cnt += 1
-            threshold = n_steps * (sigma_0 / np.median(sigmas)) ** 2.0
-            if cnt >= threshold:
-                break
-
-        # Check maximum iterations
-        if iteration >= n_max:
-            break
-
-    average_efficiency = sigmas.mean() / sigma_0
-    average_acceptance = alpha.mean()
-
-    return u, x, logl, blobs, average_efficiency, average_acceptance, iteration, n_calls
+    runner = _TPCNRunner(
+        u,
+        x,
+        logl,
+        blobs,
+        assignments,
+        beta,
+        mode_stats,
+        log_likelihood,
+        prior_transform,
+        progress_bar,
+        n_steps,
+        n_max,
+        periodic,
+        reflective,
+        verbose,
+    )
+    return runner.run()
 
 
 def parallel_random_walk_metropolis(
@@ -472,112 +636,21 @@ def parallel_random_walk_metropolis(
     Tuple containing updated u, x, logl, blobs, average efficiency, average acceptance rate,
     number of iterations, and number of likelihood calls.
     """
-    n_calls = 0
-    n_walkers, n_dim = x.shape
-    n_clusters = mode_stats.K
-
-    # Clone state variables to avoid modifying inputs
-    u = u.copy()
-    x = x.copy()
-    logl = logl.copy()
-    if blobs is not None:
-        blobs = blobs.copy()
-    assignments = assignments.copy()
-
-    # Extract precomputed Cholesky decompositions from mode_stats
-    chol_covs = mode_stats.chol_covariances
-
-    # Precompute sigmas
-    sigma_0 = 2.38 / np.sqrt(n_dim)
-    sigmas = np.ones(n_clusters) * sigma_0
-
-    best_average_logl = np.mean(logl)
-    cnt = 0
-    iteration = 0
-
-    while True:
-        iteration += 1
-
-        # Propose new u_prime for each walker, ensuring all components are within [0, 1]
-        u_prime = np.empty_like(u)
-        for k in range(n_walkers):
-            chol_cov = chol_covs[assignments[k]]
-            sigma = sigmas[assignments[k]]
-            while True:
-                proposal = u[k] + sigma * chol_cov @ np.random.randn(n_dim)
-                # Apply boundary conditions for periodic/reflective parameters
-                proposal = apply_boundary_conditions(proposal, periodic, reflective)
-                if check_bounds(proposal, periodic, reflective):
-                    u_prime[k] = proposal
-                    break
-
-        # Transform to x space
-        x_prime = np.array([prior_transform(u_p) for u_p in u_prime])
-
-        # Evaluate log-likelihood
-        if blobs is not None:
-            logl_prime, blobs_prime = log_likelihood(x_prime)
-        else:
-            logl_prime, _ = log_likelihood(x_prime)
-            blobs_prime = None
-
-        n_calls += n_walkers
-
-        # Calculate acceptance probability
-        alpha = np.exp(beta * (logl_prime - logl))
-        alpha = np.minimum(1.0, alpha)
-        alpha = np.nan_to_num(alpha, nan=0.0)
-
-        # Metropolis criterion
-        u_rand = np.random.rand(n_walkers)
-        mask_accept = u_rand < alpha
-
-        # Update accepted walkers
-        u[mask_accept] = u_prime[mask_accept]
-        x[mask_accept] = x_prime[mask_accept]
-        logl[mask_accept] = logl_prime[mask_accept]
-        if blobs is not None:
-            blobs[mask_accept] = blobs_prime[mask_accept]
-
-        # Adapt sigmas
-        for c in range(n_clusters):
-            mask_cluster = assignments == c
-            if not np.any(mask_cluster):
-                continue
-
-            mean_accept = alpha[mask_cluster].mean()
-            adaptation_rate = 1.0 / (iteration + 1)  # r = 1.0
-
-            # Update sigma with diminishing adaptation
-            sigmas[c] = sigmas[c] + adaptation_rate * (mean_accept - 0.234)
-
-        # Update progress bar if provided
-        if progress_bar is not None and verbose:
-            progress_info = {
-                "calls": getattr(progress_bar, "info", {}).get("calls", 0) + n_walkers,
-                "acc": alpha.mean(),
-                "steps": iteration,
-                "logL": logl.mean(),
-                "eff": sigmas.mean() / sigma_0,
-            }
-            progress_bar.update_stats(progress_info)
-
-        # Check for convergence based on log-likelihood improvement
-        average_logl = logl.mean()
-        if average_logl > best_average_logl:
-            cnt = 0
-            best_average_logl = average_logl
-        else:
-            cnt += 1
-            threshold = n_steps * (sigma_0 / np.median(sigmas)) ** 2.0
-            if cnt >= threshold:
-                break
-
-        # Check maximum iterations
-        if iteration >= n_max:
-            break
-
-    average_efficiency = sigmas.mean() / sigma_0
-    average_acceptance = alpha.mean()
-
-    return u, x, logl, blobs, average_efficiency, average_acceptance, iteration, n_calls
+    runner = _RWMRunner(
+        u,
+        x,
+        logl,
+        blobs,
+        assignments,
+        beta,
+        mode_stats,
+        log_likelihood,
+        prior_transform,
+        progress_bar,
+        n_steps,
+        n_max,
+        periodic,
+        reflective,
+        verbose,
+    )
+    return runner.run()
