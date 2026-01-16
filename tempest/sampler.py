@@ -18,6 +18,7 @@ from .tools import (
 from .state_manager import StateManager
 from .cluster import HierarchicalGaussianMixture
 from .modes import ModeStatistics
+from ._steps import Reweighter, Trainer, Resampler, Mutator
 
 
 class Sampler:
@@ -331,6 +332,12 @@ class Sampler:
         self.progress = None
         self.pbar = None
 
+        # Initialize step classes (will be fully configured in run())
+        self.reweighter = None
+        self.trainer = None
+        self.resampler = None
+        self.mutator = None
+
     def run(
         self,
         n_total: int = 4096,
@@ -388,6 +395,9 @@ class Sampler:
                 )
             )
             self.logz_err = None
+
+            # Initialize step classes
+            self._initialize_steps()
         else:
             t0 = 0
             self.state.set_current("iter", 0)
@@ -412,6 +422,9 @@ class Sampler:
                     K=1,
                 )
             )
+
+            # Initialize step classes
+            self._initialize_steps()
 
         self.n_total = int(n_total)
 
@@ -477,14 +490,14 @@ class Sampler:
         # Choose next beta based on ESS of weights
         weights = self._reweight()
 
-        # Train clustering
-        self._train(weights)
+        # Train clustering and build mode statistics
+        mode_stats = self._train(weights)
 
         # Resample particles
         self._resample(weights)
 
         # Evolve particles using MCMC
-        self._mutate()
+        self._mutate(mode_stats)
 
         # Update progress bar
         current = self.state.get_current()
@@ -550,353 +563,79 @@ class Sampler:
         beta = self.state.get_current("beta")
         return 1.0 - beta >= self.BETA_TOLERANCE or ess < self.n_total
 
-    def _mutate(self):
-        """
-        Evolve particles using MCMC.
-
-        At beta=0 (warmup phase), draws fresh samples from the prior instead
-        of running MCMC, since prior samples are independent.
-
-        Parameters
-        ----------
-        current_particles : dict
-            Dictionary containing the current particles.
-
-        Returns
-        -------
-        current_particles : dict
-            Dictionary containing the updated particles.
-        """
-        # During warmup (beta=0), draw fresh prior samples instead of MCMC
-        beta = self.state.get_current("beta")
-        if beta == 0.0:
-            u = np.random.rand(self.n_active, self.n_dim)
-            x = np.array([self.prior_transform(u[i]) for i in range(self.n_active)])
-            logl, blobs = self._log_like(x)
-            assignments = np.zeros(self.n_active, dtype=int)
-            calls = self.state.get_current("calls") + self.n_active
-
-            self.state.update_current(
-                {
-                    "u": u,
-                    "x": x,
-                    "logl": logl,
-                    "blobs": blobs,
-                    "assignments": assignments,
-                    "calls": calls,
-                    "steps": 1,
-                    "acceptance": 1.0,
-                    "efficiency": 1.0,
-                }
-            )
-
-            # Resample prior particles with infinite likelihoods
-            inf_logl_mask = np.isinf(logl)
-            if np.any(inf_logl_mask):
-                all_idx = np.arange(len(x))
-                infinite_idx = all_idx[inf_logl_mask]
-                finite_idx = all_idx[~inf_logl_mask]
-                if len(finite_idx) > 0:
-                    idx = np.random.choice(
-                        finite_idx, size=len(infinite_idx), replace=True
-                    )
-                    x[infinite_idx] = x[idx]
-                    u[infinite_idx] = u[idx]
-                    logl[infinite_idx] = logl[idx]
-                    if self.have_blobs:
-                        blobs[infinite_idx] = blobs[idx]
-
-                    self.state.set_current("x", x)
-                    self.state.set_current("u", u)
-                    self.state.set_current("logl", logl)
-                    if self.have_blobs:
-                        self.state.set_current("blobs", blobs)
-
-                # Correct logZ for fraction of prior with finite likelihood support
-                n_finite = len(finite_idx)
-                n_total = len(logl)
-                logz = self.state.get_current("logz") + np.log(n_finite / n_total)
-                self.state.set_current("logz", logz)
-            return
-
-        blobs = (
-            self.state.get_current("blobs")
-            if self.have_blobs and self.state.get_current("blobs") is not None
-            else None
+    def _initialize_steps(self):
+        """Initialize the four step classes for the PS algorithm."""
+        # Reweighter - owns mutable n_effective and n_active
+        self.reweighter = Reweighter(
+            state=self.state,
+            pbar=self.pbar,
+            n_effective=self.n_effective,
+            n_active=self.n_active,
+            metric=self.metric,
+            ESS_TOLERANCE=self.ESS_TOLERANCE,
+            BETA_TOLERANCE=self.BETA_TOLERANCE,
+            dynamic=self.dynamic,
+            DYNAMIC_RATIO_LOWER=self.DYNAMIC_RATIO_LOWER,
+            DYNAMIC_RATIO_UPPER=self.DYNAMIC_RATIO_UPPER,
+            n_boost=self.n_boost,
+            n_effective_init=self.n_effective_init,
+            n_active_init=self.n_active_init,
+            BOOST_STEEPNESS=self.BOOST_STEEPNESS,
         )
 
-        (
-            u,
-            x,
-            logl,
-            blobs,
-            efficiency,
-            acceptance,
-            steps,
-            mcmc_calls,
-        ) = parallel_mcmc(
-            u=self.state.get_current("u"),
-            x=self.state.get_current("x"),
-            logl=self.state.get_current("logl"),
-            blobs=blobs,
-            assignments=self.state.get_current("assignments"),
-            beta=self.state.get_current("beta"),
-            mode_stats=self.mode_stats,
-            log_likelihood=self._log_like,
+        # Trainer - fits clustering and builds mode statistics
+        self.trainer = Trainer(
+            state=self.state,
+            pbar=self.pbar,
+            clusterer=self.clusterer,
+            cluster_every=self.cluster_every,
+            clustering=self.clustering,
+            TRIM_ESS=self.TRIM_ESS,
+            TRIM_BINS=self.TRIM_BINS,
+            DOF_FALLBACK=self.DOF_FALLBACK,
+        )
+
+        # Resampler - resamples particles from history
+        self.resampler = Resampler(
+            state=self.state,
+            n_active_fn=lambda: self.reweighter.n_active,
+            resample=self.resample,
+            clusterer=self.clusterer,
+            clustering=self.clustering,
+            have_blobs=self.have_blobs,
+        )
+
+        # Mutator - evolves particles via MCMC
+        self.mutator = Mutator(
+            state=self.state,
             prior_transform=self.prior_transform,
-            progress_bar=self.pbar,
+            log_likelihood=self._log_like,
+            pbar=self.pbar,
+            n_active_fn=lambda: self.reweighter.n_active,
+            n_dim=self.n_dim,
             n_steps=self.n_steps,
-            n_max=self.n_max_steps,
-            sample=self.sampler,
+            n_max_steps=self.n_max_steps,
+            sampler=self.sampler,
             periodic=self.periodic,
             reflective=self.reflective,
-            verbose=True,
+            have_blobs=self.have_blobs,
         )
 
-        self.state.update_current(
-            {
-                "u": u,
-                "x": x,
-                "logl": logl,
-                "efficiency": efficiency,
-                "acceptance": acceptance,
-                "steps": steps,
-            }
-        )
+    def _mutate(self, mode_stats: ModeStatistics):
+        """Delegate to Mutator step class."""
+        self.mutator.run(mode_stats)
 
-        if self.have_blobs:
-            self.state.set_current("blobs", blobs.copy())
-
-        calls = self.state.get_current("calls") + mcmc_calls
-        self.state.set_current("calls", calls)
-
-    def _train(self, weights: np.ndarray):
-        """
-        Train clustering model using weighted historical particles.
-
-        Parameters
-        ----------
-        weights : np.ndarray
-            Importance weights for all historical particles.
-
-        Updates internal state:
-            - mode_stats: ModeStatistics object containing mode parameters
-        """
-        # Skip training at beta=0 (mutation draws fresh prior samples)
-        beta_val = self.state.get_current("beta")
-        if beta_val == 0.0:
-            return
-
-        iter_val = self.state.get_current("iter")
-
-        # Trim weights for clustering robustness
-        trim_idx, weights_trimmed = trim_weights(
-            np.arange(len(weights)), weights, ess=self.TRIM_ESS, bins=self.TRIM_BINS
-        )
-
-        if self.clustering and (iter_val % self.cluster_every == 0 or iter_val == 0):
-            # Fit clustering model and mode statistics
-            u = self.state.get_history("u", flat=True)[trim_idx]
-            self.clusterer.fit(u, weights_trimmed)
-            labels = self.clusterer.predict(u)
-            self.mode_stats = ModeStatistics.from_particles(
-                u, weights_trimmed, labels, dof_fallback=self.DOF_FALLBACK
-            )
-        elif self.clustering and not (
-            iter_val % self.cluster_every == 0 or iter_val == 0
-        ):
-            # Use previous clustering (mode_stats already set)
-            pass
-        else:
-            # No clustering - fit global Student-t distribution
-            u = self.state.get_history("u", flat=True)[trim_idx]
-            self.mode_stats = ModeStatistics.from_global(
-                u, weights_trimmed, dof_fallback=self.DOF_FALLBACK
-            )
-
-        # Update progress bar with number of clusters (K)
-        if self.pbar is not None:
-            self.pbar.update_stats(dict(K=self.mode_stats.K))
+    def _train(self, weights: np.ndarray) -> ModeStatistics:
+        """Delegate to Trainer step class."""
+        return self.trainer.run(weights)
 
     def _resample(self, weights: np.ndarray):
-        """
-        Resample to n_active particles using importance weights.
-
-        Parameters
-        ----------
-        weights : np.ndarray
-            Importance weights for all historical particles (untrimmed).
-
-        Updates current state:
-            - u: unit hypercube coordinates (shape: [n_active, n_dim])
-            - x: physical coordinates (shape: [n_active, n_dim])
-            - logl: log-likelihoods (shape: [n_active])
-            - blobs: auxiliary data (shape: [n_active, ...] if enabled)
-            - assignments: cluster labels (shape: [n_active])
-        """
-        # Skip resampling during warmup (beta=0) - will draw fresh prior samples
-        beta = self.state.get_current("beta")
-        if beta == 0.0:
-            self.state.set_current("assignments", np.zeros(self.n_active, dtype=int))
-            return
-
-        u = self.state.get_history("u", flat=True)
-        x = self.state.get_history("x", flat=True)
-        logl = self.state.get_history("logl", flat=True)
-        blobs = self.state.get_history("blobs", flat=True) if self.have_blobs else None
-
-        if self.resample == "mult":
-            idx_resampled = np.random.choice(
-                np.arange(len(weights)), size=self.n_active, replace=True, p=weights
-            )
-        elif self.resample == "syst":
-            idx_resampled = systematic_resample(self.n_active, weights=weights)
-
-        u_resampled = u[idx_resampled]
-        self.state.update_current(
-            {
-                "u": u_resampled,
-                "x": x[idx_resampled],
-                "logl": logl[idx_resampled],
-                "assignments": self.clusterer.predict(u_resampled)
-                if self.clustering
-                else np.zeros(self.n_active, dtype=int),
-            }
-        )
-
-        if self.have_blobs:
-            self.state.set_current("blobs", blobs[idx_resampled])
+        """Delegate to Resampler step class."""
+        self.resampler.run(weights)
 
     def _reweight(self):
-        """
-        Reweight particles to determine next temperature level.
-
-        Updates current state with:
-            - iter: incremented iteration number
-            - beta: new inverse temperature
-            - logz: new log-evidence estimate
-            - ess: new effective sample size
-
-        Returns
-        -------
-        weights : np.ndarray
-            Importance weights for all historical particles (untrimmed).
-            Shape: (n_total,) where n_total is sum of all historical samples.
-        """
-        # Update iteration index
-        iter_val = self.state.get_current("iter") + 1
-        self.state.set_current("iter", iter_val)
-        self.pbar.update_iter()
-
-        # Handle first iteration (no particles yet)
-        if self.state.get_history_length() == 0:
-            self.state.update_current(
-                {
-                    "beta": 0.0,
-                    "logz": 0.0,
-                    "ess": self.n_effective,
-                }
-            )
-            self.pbar.update_stats(dict(beta=0.0, ESS=int(self.n_effective), logZ=0.0))
-            return np.ones(self.n_active) / self.n_active
-
-        beta_prev = self.state.get_current("beta")
-        beta_max = 1.0
-        beta_min = np.copy(beta_prev)
-
-        def get_weights_and_ess(beta):
-            logw, _ = self.state.compute_logw_and_logz(beta)
-            weights = np.exp(logw - np.max(logw))
-            if self.metric == "ess":
-                ess_est = effective_sample_size(weights)
-            elif self.metric == "uss":
-                ess_est = unique_sample_size(weights)
-            return weights, ess_est
-
-        weights_prev, ess_est_prev = get_weights_and_ess(beta_prev)
-        weights_max, ess_est_max = get_weights_and_ess(beta_max)
-
-        if ess_est_prev <= self.n_effective:
-            beta = beta_prev
-            weights = weights_prev
-            logz = self.state.get_current("logz")
-            ess_est = ess_est_prev
-            self.pbar.update_stats(dict(beta=beta, ESS=int(ess_est_prev), logZ=logz))
-        elif ess_est_max >= self.n_effective:
-            beta = beta_max
-            weights = weights_max
-            _, logz = self.state.compute_logw_and_logz(beta)
-            ess_est = ess_est_max
-            self.pbar.update_stats(dict(beta=beta, ESS=int(ess_est_max), logZ=logz))
-        else:
-            while True:
-                beta = (beta_max + beta_min) * 0.5
-
-                weights, ess_est = get_weights_and_ess(beta)
-
-                if (
-                    np.abs(ess_est - self.n_effective)
-                    < self.ESS_TOLERANCE * self.n_effective
-                    or beta == 1.0
-                ):
-                    _, logz = self.state.compute_logw_and_logz(beta)
-                    self.pbar.update_stats(dict(beta=beta, ESS=int(ess_est), logZ=logz))
-                    break
-                elif ess_est < self.n_effective:
-                    beta_max = beta
-                else:
-                    beta_min = beta
-
-        logw, _ = self.state.compute_logw_and_logz(beta)
-        weights = np.exp(logw - np.max(logw))
-        weights /= np.sum(weights)
-
-        if self.dynamic:
-            # Adjust the number of effective particles based on the expected number of unique particles
-            n_unique_active = unique_sample_size(weights, k=self.n_active)
-            # Maintain the original ratio of unique active to effective particles
-            if n_unique_active < self.n_active * (
-                self.DYNAMIC_RATIO_LOWER * self.dynamic_ratio
-            ):
-                self.n_effective = int(
-                    self.n_active / n_unique_active * self.n_effective
-                )
-            elif n_unique_active > self.n_active * np.minimum(
-                self.DYNAMIC_RATIO_UPPER * self.dynamic_ratio, 1.0
-            ):
-                self.n_effective = int(
-                    n_unique_active / self.n_active * self.n_effective
-                )
-
-        if self.n_boost is not None:
-            _, posterior_ess = get_weights_and_ess(1.0)
-
-            r = (posterior_ess - 1.0) / self.n_effective
-            new_n_effective = int((1 - r) * self.n_effective_init + r * self.n_boost)
-            new_n_effective = min(new_n_effective, self.n_boost)
-            if new_n_effective > self.n_effective:
-                self.n_effective = new_n_effective
-                target_n_active = self.n_boost // 2
-                self.n_active = int(
-                    self.n_active_init
-                    + (target_n_active - self.n_active_init) * r**self.BOOST_STEEPNESS
-                )
-
-            # Cap n_effective and n_active at n_boost and n_boost // 2
-            if self.n_effective > self.n_boost:
-                self.n_effective = self.n_boost
-            max_n_active = self.n_boost // 2
-            if self.n_active > max_n_active:
-                self.n_active = max_n_active
-
-        self.state.update_current(
-            {
-                "logz": logz,
-                "beta": beta,
-                "ess": ess_est,
-            }
-        )
-        return weights
+        """Delegate to Reweighter step class."""
+        return self.reweighter.run()
 
     def _log_like(self, x):
         """
@@ -1082,7 +821,17 @@ class Sampler:
         sampler_state = {
             k: v
             for k, v in self.__dict__.items()
-            if k not in ["pbar", "pool", "distribute", "state"]
+            if k
+            not in [
+                "pbar",
+                "pool",
+                "distribute",
+                "state",
+                "reweighter",
+                "trainer",
+                "resampler",
+                "mutator",
+            ]
         }
 
         # Save StateManager state
