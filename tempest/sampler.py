@@ -17,7 +17,7 @@ from .tools import (
 )
 from .state_manager import StateManager
 from .cluster import HierarchicalGaussianMixture
-from .student import fit_mvstud
+from .modes import ModeStatistics
 
 
 class Sampler:
@@ -641,9 +641,7 @@ class Sampler:
             blobs=blobs,
             assignments=self.state.get_current("assignments"),
             beta=self.state.get_current("beta"),
-            means=self.means,
-            covariances=self.covariances,
-            degrees_of_freedom=self.degrees_of_freedom,
+            mode_stats=self.mode_stats,
             log_likelihood=self._log_like,
             prior_transform=self.prior_transform,
             progress_bar=self.pbar,
@@ -682,10 +680,7 @@ class Sampler:
             Importance weights for all historical particles.
 
         Updates internal state:
-            - means: cluster centers (shape: [n_clusters, n_dim])
-            - covariances: cluster covariances (shape: [n_clusters, n_dim, n_dim])
-            - degrees_of_freedom: cluster DOFs (shape: [n_clusters])
-            - K: number of clusters
+            - mode_stats: ModeStatistics object containing mode parameters
         """
         # Skip training at beta=0 (mutation draws fresh prior samples)
         beta_val = self.state.get_current("beta")
@@ -700,63 +695,28 @@ class Sampler:
         )
 
         if self.clustering and (iter_val % self.cluster_every == 0 or iter_val == 0):
-            # Fit clustering model
+            # Fit clustering model and mode statistics
             u = self.state.get_history("u", flat=True)[trim_idx]
             self.clusterer.fit(u, weights_trimmed)
             labels = self.clusterer.predict(u)
-            means = []
-            covariances = []
-            degrees_of_freedom = []
-            for label in range(np.unique(labels).shape[0]):
-                idx_cluster = np.where(labels == label)[0]
-                u_idx = u[idx_cluster]
-                weights_idx = weights_trimmed[idx_cluster]
-                weights_idx /= np.sum(weights_idx)
-                u_idx_resampled = u_idx[
-                    np.random.choice(
-                        np.arange(len(u_idx)),
-                        size=len(u_idx) * 4,
-                        replace=True,
-                        p=weights_idx,
-                    )
-                ]
-                mean, covariance, dof = fit_mvstud(u_idx_resampled)
-                if ~np.isfinite(dof):
-                    dof = self.DOF_FALLBACK
-                means.append(mean)
-                covariances.append(covariance)
-                degrees_of_freedom.append(dof)
-
-            self.means = np.array(means)
-            self.covariances = np.array(covariances)
-            self.degrees_of_freedom = np.array(degrees_of_freedom)
-            self.K = self.means.shape[0]
+            self.mode_stats = ModeStatistics.from_particles(
+                u, weights_trimmed, labels, dof_fallback=self.DOF_FALLBACK
+            )
         elif self.clustering and not (
             iter_val % self.cluster_every == 0 or iter_val == 0
         ):
-            # Use previous clustering
+            # Use previous clustering (mode_stats already set)
             pass
         else:
+            # No clustering - fit global Student-t distribution
             u = self.state.get_history("u", flat=True)[trim_idx]
-            u_resampled = u[
-                np.random.choice(
-                    np.arange(len(weights_trimmed)),
-                    size=self.n_effective * 4,
-                    replace=True,
-                    p=weights_trimmed,
-                )
-            ]
-            mean, covariance, dof = fit_mvstud(u_resampled)
-            self.means = mean.reshape(1, self.n_dim)
-            self.covariances = covariance.reshape(1, self.n_dim, self.n_dim)
-            if ~np.isfinite(dof):
-                dof = self.DOF_FALLBACK
-            self.degrees_of_freedom = np.array([dof])
-            self.K = 1
+            self.mode_stats = ModeStatistics.from_global(
+                u, weights_trimmed, dof_fallback=self.DOF_FALLBACK
+            )
 
         # Update progress bar with number of clusters (K)
         if self.pbar is not None:
-            self.pbar.update_stats(dict(K=self.K))
+            self.pbar.update_stats(dict(K=self.mode_stats.K))
 
     def _resample(self, weights: np.ndarray):
         """

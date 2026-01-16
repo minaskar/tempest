@@ -1,6 +1,9 @@
 import numpy as np
 from typing import Callable, Optional, Tuple
 
+from .modes import ModeStatistics
+
+
 def apply_boundary_conditions(
     u: np.ndarray,
     periodic: Optional[np.ndarray] = None,
@@ -24,12 +27,12 @@ def apply_boundary_conditions(
         Array with boundary conditions applied.
     """
     u = u.copy()
-    
+
     # Apply periodic boundary conditions (wrap around)
     if periodic is not None:
         for idx in periodic:
             u[..., idx] = u[..., idx] % 1.0
-    
+
     # Apply reflective boundary conditions
     if reflective is not None:
         for idx in reflective:
@@ -40,7 +43,7 @@ def apply_boundary_conditions(
             remainder = val - n_reflect
             # Odd number of reflections means we need to flip
             u[..., idx] = np.where(n_reflect % 2 == 0, remainder, 1.0 - remainder)
-    
+
     return u
 
 
@@ -75,13 +78,13 @@ def check_bounds(
     if reflective is not None:
         special_indices.update(reflective)
     strict_indices = list(all_indices - special_indices)
-    
+
     if len(strict_indices) == 0:
         # All indices have boundary conditions, always valid
         if u.ndim == 1:
             return True
         return np.ones(u.shape[0], dtype=bool)
-    
+
     # Check only strict indices
     u_strict = u[..., strict_indices]
     if u.ndim == 1:
@@ -96,15 +99,13 @@ def parallel_mcmc(
     blobs: Optional[np.ndarray],
     assignments: np.ndarray,
     beta: float,
-    means: np.ndarray,
-    covariances: np.ndarray,
-    degrees_of_freedom: np.ndarray,
+    mode_stats: ModeStatistics,
     log_likelihood: Callable[[np.ndarray], Tuple[np.ndarray, Optional[np.ndarray]]],
     prior_transform: Callable[[np.ndarray], np.ndarray],
     progress_bar: Optional[Callable] = None,
     n_steps: int = 100,
     n_max: int = 1000,
-    sample: str = 'tpcn',
+    sample: str = "tpcn",
     periodic: Optional[np.ndarray] = None,
     reflective: Optional[np.ndarray] = None,
     verbose: bool = True,
@@ -126,12 +127,9 @@ def parallel_mcmc(
         Array of cluster assignments for each walker (shape: [n_walkers]).
     beta : float
         Inverse temperature parameter.
-    means : np.ndarray
-        Array of means for each cluster (shape: [n_clusters, n_dim]).
-    covariances : np.ndarray
-        Array of covariance matrices for each cluster (shape: [n_clusters, n_dim, n_dim]).
-    degrees_of_freedom : np.ndarray
-        Degrees of freedom for each cluster (shape: [n_clusters]).
+    mode_stats : ModeStatistics
+        Mode statistics object containing means, covariances, degrees of freedom,
+        and precomputed inverse covariances and Cholesky decompositions.
     log_likelihood : Callable
         Function to compute log-likelihood given parameters in x space.
     prior_transform : Callable
@@ -153,17 +151,42 @@ def parallel_mcmc(
     number of iterations, and number of likelihood calls.
     """
 
-    if sample == 'rwm':
-        return parallel_random_walk_metropolis(u, x, logl, blobs, assignments, beta, 
-                                               covariances, log_likelihood, prior_transform, 
-                                               progress_bar, n_steps, n_max, 
-                                               periodic, reflective, verbose)
+    if sample == "rwm":
+        return parallel_random_walk_metropolis(
+            u,
+            x,
+            logl,
+            blobs,
+            assignments,
+            beta,
+            mode_stats,
+            log_likelihood,
+            prior_transform,
+            progress_bar,
+            n_steps,
+            n_max,
+            periodic,
+            reflective,
+            verbose,
+        )
     else:
-        return parallel_t_preconditioned_crank_nicolson(u, x, logl, blobs, assignments, beta, 
-                                                         means, covariances, degrees_of_freedom, 
-                                                         log_likelihood, prior_transform, 
-                                                         progress_bar, n_steps, n_max,
-                                                         periodic, reflective, verbose)
+        return parallel_t_preconditioned_crank_nicolson(
+            u,
+            x,
+            logl,
+            blobs,
+            assignments,
+            beta,
+            mode_stats,
+            log_likelihood,
+            prior_transform,
+            progress_bar,
+            n_steps,
+            n_max,
+            periodic,
+            reflective,
+            verbose,
+        )
 
 
 def parallel_t_preconditioned_crank_nicolson(
@@ -173,9 +196,7 @@ def parallel_t_preconditioned_crank_nicolson(
     blobs: Optional[np.ndarray],
     assignments: np.ndarray,
     beta: float,
-    means: np.ndarray,
-    covariances: np.ndarray,
-    degrees_of_freedom: np.ndarray,
+    mode_stats: ModeStatistics,
     log_likelihood: Callable[[np.ndarray], Tuple[np.ndarray, Optional[np.ndarray]]],
     prior_transform: Callable[[np.ndarray], np.ndarray],
     progress_bar: Optional[Callable] = None,
@@ -184,7 +205,9 @@ def parallel_t_preconditioned_crank_nicolson(
     periodic: Optional[np.ndarray] = None,
     reflective: Optional[np.ndarray] = None,
     verbose: bool = True,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray], float, float, int, int]:
+) -> Tuple[
+    np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray], float, float, int, int
+]:
     """
     Perform parallel t-preconditioned Crank-Nicolson updates for MCMC sampling.
 
@@ -202,12 +225,9 @@ def parallel_t_preconditioned_crank_nicolson(
         Array of cluster assignments for each walker (shape: [n_walkers]).
     beta : float
         Inverse temperature parameter.
-    means : np.ndarray
-        Array of means for each cluster (shape: [n_clusters, n_dim]).
-    covariances : np.ndarray
-        Array of covariance matrices for each cluster (shape: [n_clusters, n_dim, n_dim]).
-    degrees_of_freedom : np.ndarray
-        Degrees of freedom for each cluster (shape: [n_clusters]).
+    mode_stats : ModeStatistics
+        Mode statistics object containing means, covariances, degrees of freedom,
+        and precomputed inverse covariances and Cholesky decompositions.
     log_likelihood : Callable
         Function to compute log-likelihood given parameters in x space.
     prior_transform : Callable
@@ -232,7 +252,7 @@ def parallel_t_preconditioned_crank_nicolson(
     """
     n_calls = 0
     n_walkers, n_dim = x.shape
-    n_clusters = means.shape[0]
+    n_clusters = mode_stats.K
 
     # Clone state variables to avoid modifying inputs
     u = u.copy()
@@ -241,16 +261,16 @@ def parallel_t_preconditioned_crank_nicolson(
     if blobs is not None:
         blobs = blobs.copy()
     assignments = assignments.copy()
-    means = means.copy()
-    covariances = covariances.copy()
-    degrees_of_freedom = degrees_of_freedom.copy()
 
-    # Precompute sigmas, inverses, and Cholesky decompositions
+    # Extract mode statistics (already precomputed in ModeStatistics)
+    means = mode_stats.means
+    degrees_of_freedom = mode_stats.degrees_of_freedom
+    inv_covs = mode_stats.inv_covariances
+    chol_covs = mode_stats.chol_covariances
+
+    # Precompute sigmas
     sigma_0 = 2.38 / np.sqrt(n_dim)
     sigmas = np.ones(n_clusters) * np.minimum(sigma_0, 0.99)
-
-    inv_covs = np.linalg.inv(covariances)  # Shape: [n_clusters, n_dim, n_dim]
-    chol_covs = np.linalg.cholesky(covariances)  # Shape: [n_clusters, n_dim, n_dim]
 
     best_average_logl = np.mean(logl)
     cnt = 0
@@ -264,7 +284,7 @@ def parallel_t_preconditioned_crank_nicolson(
         diff = u - means_assigned  # Shape: [n_walkers, n_dim]
 
         # Compute scaling factors s for all walkers
-        dot_products = np.einsum('ij,ijk,ik->i', diff, inv_covs[assignments], diff)
+        dot_products = np.einsum("ij,ijk,ik->i", diff, inv_covs[assignments], diff)
         gamma_shape = (n_dim + degrees_of_freedom[assignments]) / 2
         gamma_scale = 2.0 / (degrees_of_freedom[assignments] + dot_products)
         s = 1.0 / np.random.gamma(shape=gamma_shape, scale=gamma_scale)
@@ -280,7 +300,7 @@ def parallel_t_preconditioned_crank_nicolson(
             while True:
                 proposal = (
                     mu
-                    + np.sqrt(1.0 - sigma ** 2.0) * diff[k]
+                    + np.sqrt(1.0 - sigma**2.0) * diff[k]
                     + sigma * np.sqrt(s[k]) * chol_cov @ np.random.randn(n_dim)
                 )
                 # Apply boundary conditions for periodic/reflective parameters
@@ -303,9 +323,19 @@ def parallel_t_preconditioned_crank_nicolson(
 
         # Compute Metropolis acceptance factors
         diff_prime = u_prime - means_assigned  # Shape: [n_walkers, n_dim]
-        dot_prime = np.einsum('ij,ijk,ik->i', diff_prime, inv_covs[assignments], diff_prime)
-        A = -0.5 * (n_dim + degrees_of_freedom[assignments]) * np.log(1 + dot_prime / degrees_of_freedom[assignments])
-        B = -0.5 * (n_dim + degrees_of_freedom[assignments]) * np.log(1 + dot_products / degrees_of_freedom[assignments])
+        dot_prime = np.einsum(
+            "ij,ijk,ik->i", diff_prime, inv_covs[assignments], diff_prime
+        )
+        A = (
+            -0.5
+            * (n_dim + degrees_of_freedom[assignments])
+            * np.log(1 + dot_prime / degrees_of_freedom[assignments])
+        )
+        B = (
+            -0.5
+            * (n_dim + degrees_of_freedom[assignments])
+            * np.log(1 + dot_products / degrees_of_freedom[assignments])
+        )
 
         # Calculate acceptance probability
         alpha = np.exp(beta * (logl_prime - logl) - A + B)
@@ -336,21 +366,21 @@ def parallel_t_preconditioned_crank_nicolson(
             sigmas[c] = np.clip(
                 sigmas[c] + adaptation_rate * (mean_accept - 0.234),
                 0,
-                min(sigma_0, 0.99)
+                min(sigma_0, 0.99),
             )
 
             # Update mean with moving average
-            #mean_update = u[mask_cluster].mean(axis=0)
-            #means[c] += adaptation_rate * (mean_update - means[c])
+            # mean_update = u[mask_cluster].mean(axis=0)
+            # means[c] += adaptation_rate * (mean_update - means[c])
 
         # Update progress bar if provided
         if progress_bar is not None and verbose:
             progress_info = {
-                'calls': progress_bar.info.get('calls', 0) + n_walkers,
-                'acc': alpha.mean(),
-                'steps': iteration,
-                'logL': logl.mean(),
-                'eff': sigmas.mean() / sigma_0,
+                "calls": progress_bar.info.get("calls", 0) + n_walkers,
+                "acc": alpha.mean(),
+                "steps": iteration,
+                "logL": logl.mean(),
+                "eff": sigmas.mean() / sigma_0,
             }
             progress_bar.update_stats(progress_info)
 
@@ -382,7 +412,7 @@ def parallel_random_walk_metropolis(
     blobs: Optional[np.ndarray],
     assignments: np.ndarray,
     beta: float,
-    covariances: np.ndarray,
+    mode_stats: ModeStatistics,
     log_likelihood: Callable[[np.ndarray], Tuple[np.ndarray, Optional[np.ndarray]]],
     prior_transform: Callable[[np.ndarray], np.ndarray],
     progress_bar: Optional[Callable] = None,
@@ -418,8 +448,8 @@ def parallel_random_walk_metropolis(
         Array of cluster assignments for each walker (shape: [n_walkers]).
     beta : float
         Inverse temperature parameter.
-    covariances : np.ndarray
-        Array of covariance matrices for each cluster (shape: [n_clusters, n_dim, n_dim]).
+    mode_stats : ModeStatistics
+        Mode statistics object containing covariances and precomputed Cholesky decompositions.
     log_likelihood : Callable
         Function to compute log-likelihood given parameters in x space.
     prior_transform : Callable
@@ -444,7 +474,7 @@ def parallel_random_walk_metropolis(
     """
     n_calls = 0
     n_walkers, n_dim = x.shape
-    n_clusters = covariances.shape[0]
+    n_clusters = mode_stats.K
 
     # Clone state variables to avoid modifying inputs
     u = u.copy()
@@ -453,13 +483,13 @@ def parallel_random_walk_metropolis(
     if blobs is not None:
         blobs = blobs.copy()
     assignments = assignments.copy()
-    covariances = covariances.copy()
 
-    # Precompute sigmas and Cholesky decompositions
+    # Extract precomputed Cholesky decompositions from mode_stats
+    chol_covs = mode_stats.chol_covariances
+
+    # Precompute sigmas
     sigma_0 = 2.38 / np.sqrt(n_dim)
     sigmas = np.ones(n_clusters) * sigma_0
-
-    chol_covs = np.linalg.cholesky(covariances)  # Shape: [n_clusters, n_dim, n_dim]
 
     best_average_logl = np.mean(logl)
     cnt = 0
@@ -519,16 +549,16 @@ def parallel_random_walk_metropolis(
             adaptation_rate = 1.0 / (iteration + 1)  # r = 1.0
 
             # Update sigma with diminishing adaptation
-            sigmas[c] = sigmas[c] + adaptation_rate * (mean_accept - 0.234),
+            sigmas[c] = (sigmas[c] + adaptation_rate * (mean_accept - 0.234),)
 
         # Update progress bar if provided
         if progress_bar is not None and verbose:
             progress_info = {
-                'calls': getattr(progress_bar, 'info', {}).get('calls', 0) + n_walkers,
-                'acc': alpha.mean(),
-                'steps': iteration,
-                'logL': logl.mean(),
-                'eff': sigmas.mean() / sigma_0,
+                "calls": getattr(progress_bar, "info", {}).get("calls", 0) + n_walkers,
+                "acc": alpha.mean(),
+                "steps": iteration,
+                "logL": logl.mean(),
+                "eff": sigmas.mean() / sigma_0,
             }
             progress_bar.update_stats(progress_info)
 
