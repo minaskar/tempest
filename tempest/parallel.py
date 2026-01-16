@@ -3,15 +3,18 @@ import atexit
 
 MPI = None
 
+
 def _import_mpi(use_dill=False):
     global MPI
     try:
         from mpi4py import MPI as _MPI
+
         if use_dill:
             import dill
+
             _MPI.pickle.__init__(dill.dumps, dill.loads, dill.HIGHEST_PROTOCOL)
         MPI = _MPI
-    except:
+    except ImportError:
         raise ImportError("Please install mpi4py")
 
     return MPI
@@ -21,7 +24,7 @@ class MPIPool:
     r"""A processing pool that distributes tasks using MPI.
     With this pool class, the master process distributes tasks to worker
     processes using an MPI communicator.
-    
+
 
     Parameters
     ----------
@@ -41,7 +44,6 @@ class MPIPool:
     """
 
     def __init__(self, comm=None, use_dill=True):
-
         global MPI
         if MPI is None:
             MPI = _import_mpi(use_dill=use_dill)
@@ -63,10 +65,11 @@ class MPIPool:
         self.size = self.comm.Get_size() - 1
 
         if self.size == 0:
-            raise ValueError("Tried to create an MPI pool, but there "
-                             "was only one MPI process available. "
-                             "Need at least two.")
-
+            raise ValueError(
+                "Tried to create an MPI pool, but there "
+                "was only one MPI process available. "
+                "Need at least two."
+            )
 
     def wait(self):
         r"""Tell the workers to wait and listen for the master process. This is
@@ -89,12 +92,11 @@ class MPIPool:
             # Worker is sending answer with tag
             self.comm.ssend(result, self.master, status.tag)
 
-
     def map(self, worker, tasks):
         r"""Evaluate a function or callable on each task in parallel using MPI.
         The callable, ``worker``, is called on each element of the ``tasks``
         iterable. The results are returned in the expected order.
-        
+
         Parameters
         ----------
         worker : callable
@@ -118,7 +120,6 @@ class MPIPool:
             self.wait()
             return
 
-
         workerset = self.workers.copy()
         tasklist = [(tid, (worker, arg)) for tid, arg in enumerate(tasks)]
         resultlist = [None] * len(tasklist)
@@ -139,8 +140,9 @@ class MPIPool:
                 self.comm.Probe(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG)
 
             status = MPI.Status()
-            result = self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG,
-                                    status=status)
+            result = self.comm.recv(
+                source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status
+            )
             worker = status.source
             taskid = status.tag
 
@@ -152,27 +154,22 @@ class MPIPool:
 
         return resultlist
 
-
     def close(self):
-        """ Tell all the workers to quit."""
+        """Tell all the workers to quit."""
         if self.is_worker():
             return
 
         for worker in self.workers:
             self.comm.send(None, worker, 0)
 
-
     def is_master(self):
         return self.rank == 0
-
 
     def is_worker(self):
         return self.rank != 0
 
-
     def __enter__(self):
         return self
-
 
     def __exit__(self, *args):
         self.close()

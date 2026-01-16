@@ -710,7 +710,7 @@ class Sampler:
             if state["pool"] is not None:
                 del state["pool"]  # remove pool
                 del state["distribute"]  # remove `pool.map` function hook
-        except:  # TODO use specific exception type
+        except (KeyError, TypeError):
             pass
 
         return state

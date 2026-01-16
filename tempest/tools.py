@@ -46,9 +46,9 @@ def trim_weights(samples, weights, ess=0.99, bins=1000):
         weights_trimmed /= np.sum(weights_trimmed)
         ess_trimmed = 1.0 / np.sum(weights_trimmed**2.0)
         if ess_trimmed / ess_total >= ess:
-            break 
+            break
         i -= 1
-    
+
     return samples[mask], weights_trimmed
 
 
@@ -66,7 +66,7 @@ def effective_sample_size(weights):
     ess : ``float``
         Effective sample size.
     """
-    weights /= np.sum(weights)
+    weights = weights / np.sum(weights)
     return 1.0 / np.sum(weights**2.0)
 
 
@@ -88,8 +88,8 @@ def unique_sample_size(weights, k=None):
     """
     if k is None:
         k = len(weights)
-    weights /= np.sum(weights)
-    return np.sum(1.0 - (1.0 - weights)**k)
+    weights = weights / np.sum(weights)
+    return np.sum(1.0 - (1.0 - weights) ** k)
 
 
 def compute_ess(logw: np.ndarray):
@@ -132,9 +132,9 @@ def increment_logz(logw: np.ndarray):
     return logw_max + np.logaddexp.reduce(logw_normed)
 
 
-def systematic_resample(size: np.ndarray, 
-                        weights: np.ndarray, 
-                        random_state: int = None):
+def systematic_resample(
+    size: np.ndarray, weights: np.ndarray, random_state: int = None
+):
     """
         Resample a new set of points from the weighted set of inputs
         such that they all have equal weight.
@@ -146,13 +146,13 @@ def systematic_resample(size: np.ndarray,
     weights : `~numpy.ndarray` with shape (nsamples,)
         Corresponding weight of each sample.
     random_state : `int`, optional
-        Random seed.    
+        Random seed.
 
     Returns
     -------
     indeces : `~numpy.ndarray` with shape (nsamples,)
         Indices of the resampled array.
-    
+
     Examples
     --------
     >>> x = np.array([[1., 1.], [2., 2.], [3., 3.], [4., 4.]])
@@ -164,11 +164,11 @@ def systematic_resample(size: np.ndarray,
     -----
     Implements the systematic resampling method.
     """
-    
+
     if random_state is not None:
         np.random.seed(random_state)
 
-    if abs(np.sum(weights) - 1.) > SQRTEPS:
+    if abs(np.sum(weights) - 1.0) > SQRTEPS:
         weights = np.array(weights) / np.sum(weights)
 
     positions = (np.random.random() + np.arange(size)) / size
@@ -181,7 +181,7 @@ def systematic_resample(size: np.ndarray,
             j += 1
             cumulative_sum += weights[j]
         indeces[i] = j
-    
+
     return indeces
 
 
@@ -194,8 +194,9 @@ class ProgressBar:
     show : `bool`
         Whether or not to show a progress bar. Default is ``True``.
     """
+
     def __init__(self, show: bool = True, initial=0):
-        self.progress_bar = tqdm(desc='Iter', disable=not show, initial=initial)
+        self.progress_bar = tqdm(desc="Iter", disable=not show, initial=initial)
         self.info = dict()
 
     def update_stats(self, info):
@@ -212,13 +213,13 @@ class ProgressBar:
 
     def update_iter(self):
         """
-            Update iteration counter.
+        Update iteration counter.
         """
         self.progress_bar.update(1)
 
     def close(self):
         """
-            Close progress bar.
+        Close progress bar.
         """
         self.progress_bar.close()
 
@@ -237,6 +238,7 @@ class FunctionWrapper(object):
     kwargs : dict
         Extra keyword arguments to be passed to f.
     """
+
     def __init__(self, f, args, kwargs):
         self.f = f
         self.args = [] if args is None else args

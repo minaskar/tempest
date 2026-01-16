@@ -549,7 +549,7 @@ def parallel_random_walk_metropolis(
             adaptation_rate = 1.0 / (iteration + 1)  # r = 1.0
 
             # Update sigma with diminishing adaptation
-            sigmas[c] = (sigmas[c] + adaptation_rate * (mean_accept - 0.234),)
+            sigmas[c] = sigmas[c] + adaptation_rate * (mean_accept - 0.234)
 
         # Update progress bar if provided
         if progress_bar is not None and verbose:
