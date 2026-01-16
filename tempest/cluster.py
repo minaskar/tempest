@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Optional, Tuple
 
 
 class GaussianMixture:
@@ -52,7 +53,9 @@ class GaussianMixture:
         self.n_iter_ = 0
         self.lower_bound_ = None
 
-    def fit(self, X, sample_weight=None):
+    def fit(
+        self, X: np.ndarray, sample_weight: Optional[np.ndarray] = None
+    ) -> "GaussianMixture":
         """
         Fit the Gaussian Mixture Model.
 
@@ -279,7 +282,7 @@ class GaussianMixture:
         log_likelihood = np.log(log_likelihood + 1e-10)
         return np.sum(sample_weight * log_likelihood)
 
-    def predict(self, X):
+    def predict(self, X: np.ndarray) -> np.ndarray:
         """Predict cluster labels."""
         from scipy.stats import multivariate_normal
 
@@ -304,7 +307,7 @@ class GaussianMixture:
 
         return np.argmax(log_probabilities, axis=1)
 
-    def bic(self, X):
+    def bic(self, X: np.ndarray) -> float:
         """Compute Bayesian Information Criterion."""
         n_samples, n_features = X.shape
 
@@ -414,7 +417,9 @@ class HierarchicalGaussianMixture:
         n_params = D + D * (D + 1) / 2 + 1
         return n_params * np.log(N_eff)
 
-    def fit(self, X, sample_weight=None):
+    def fit(
+        self, X: np.ndarray, sample_weight: Optional[np.ndarray] = None
+    ) -> "HierarchicalGaussianMixture":
         """Fit the hierarchical Gaussian mixture model."""
         if not isinstance(X, np.ndarray):
             X = np.array(X)
@@ -566,7 +571,7 @@ class HierarchicalGaussianMixture:
         self._gmm_ready = self.n_clusters_ > 0 and len(self.cluster_centers_) > 0
         return self
 
-    def predict(self, X):
+    def predict(self, X: np.ndarray) -> np.ndarray:
         """Predict cluster labels for new data points."""
         if not isinstance(X, np.ndarray):
             X = np.array(X)
@@ -594,7 +599,7 @@ class HierarchicalGaussianMixture:
         )
         return np.argmin(distances, axis=1)
 
-    def predict_proba(self, X):
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Predict class probabilities for new data points."""
         if self.cluster_centers_ is None or not self.cluster_centers_:
             raise ValueError("The model has not been fitted yet.")

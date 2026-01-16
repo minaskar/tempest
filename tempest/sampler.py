@@ -351,13 +351,7 @@ class Sampler:
         ----------
         n_total : int
             The total number of effectively independent samples to be
-            collected (default is ``n_total=2048``).
-        n_evidence : int
-            The number of importance samples used to estimate the
-            evidence (default is ``n_evidence=4096``). If ``n_evidence=0``,
-            the evidence is not estimated using importance sampling and the
-            SMC estimate is used instead. If ``preconditioned=False``,
-            the evidence is estimated using SMC and ``n_evidence`` is ignored.
+            collected (default is ``n_total=4096``).
         progress : bool
             If True, print progress bar (default is ``progress=True``).
         resume_state_path : ``Union[str, Path]``

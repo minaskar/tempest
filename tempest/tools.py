@@ -2,11 +2,14 @@ import numpy as np
 import math
 from tqdm import tqdm
 import warnings
+from typing import Tuple, Optional, Dict, Any, Callable, List
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def trim_weights(samples, weights, ess=0.99, bins=1000):
+def trim_weights(
+    samples: np.ndarray, weights: np.ndarray, ess: float = 0.99, bins: int = 1000
+) -> Tuple[np.ndarray, np.ndarray]:
     """
         Trim samples and weights to a given effective sample size.
 
@@ -52,7 +55,7 @@ def trim_weights(samples, weights, ess=0.99, bins=1000):
     return samples[mask], weights_trimmed
 
 
-def effective_sample_size(weights):
+def effective_sample_size(weights: np.ndarray) -> float:
     """
         Compute effective sample size (ESS).
 
@@ -70,7 +73,7 @@ def effective_sample_size(weights):
     return 1.0 / np.sum(weights**2.0)
 
 
-def unique_sample_size(weights, k=None):
+def unique_sample_size(weights: np.ndarray, k: Optional[int] = None) -> float:
     """
         Compute unique sample size (ESS).
 
@@ -133,8 +136,8 @@ def increment_logz(logw: np.ndarray):
 
 
 def systematic_resample(
-    size: np.ndarray, weights: np.ndarray, random_state: int = None
-):
+    size: int, weights: np.ndarray, random_state: Optional[int] = None
+) -> np.ndarray:
     """
         Resample a new set of points from the weighted set of inputs
         such that they all have equal weight.
@@ -195,11 +198,11 @@ class ProgressBar:
         Whether or not to show a progress bar. Default is ``True``.
     """
 
-    def __init__(self, show: bool = True, initial=0):
+    def __init__(self, show: bool = True, initial: int = 0):
         self.progress_bar = tqdm(desc="Iter", disable=not show, initial=initial)
-        self.info = dict()
+        self.info: Dict[str, Any] = dict()
 
-    def update_stats(self, info):
+    def update_stats(self, info: Dict[str, Any]) -> None:
         """
             Update shown stats.
 
@@ -211,13 +214,13 @@ class ProgressBar:
         self.info = {**self.info, **info}
         self.progress_bar.set_postfix(ordered_dict=self.info)
 
-    def update_iter(self):
+    def update_iter(self) -> None:
         """
         Update iteration counter.
         """
         self.progress_bar.update(1)
 
-    def close(self):
+    def close(self) -> None:
         """
         Close progress bar.
         """
@@ -239,12 +242,17 @@ class FunctionWrapper(object):
         Extra keyword arguments to be passed to f.
     """
 
-    def __init__(self, f, args, kwargs):
+    def __init__(
+        self,
+        f: Callable,
+        args: Optional[List[Any]],
+        kwargs: Optional[Dict[str, Any]],
+    ):
         self.f = f
         self.args = [] if args is None else args
         self.kwargs = {} if kwargs is None else kwargs
 
-    def __call__(self, x):
+    def __call__(self, x: np.ndarray) -> Any:
         """
             Evaluate log-likelihood or log-prior function.
 
