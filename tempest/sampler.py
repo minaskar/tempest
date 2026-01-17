@@ -90,10 +90,6 @@ class Sampler:
         If ``train_frequency=None``, the normalizing flow is trained every ``n_effective//n_active``
         iterations. If ``train_frequency=1``, the normalizing flow is trained at every iteration.
         If ``train_frequency>1``, the normalizing flow is trained every ``train_frequency`` iterations.
-    dynamic : bool
-        If True, dynamically adjust the effective sample size (ESS) threshold based on the
-        number of unique particles (default is ``dynamic=True``). This can be useful for
-        targets with a large number of modes or strong non-linear correlations between parameters.
     clustering : bool
         If True, enable hierarchical Gaussian mixture clustering of particles (default is
         ``clustering=True``).
@@ -160,7 +156,6 @@ class Sampler:
         blobs_dtype: Optional[str] = None,
         periodic: Optional[list] = None,
         reflective: Optional[list] = None,
-        dynamic: bool = True,
         pool: Optional[Union[int, Pool]] = None,
         clustering: bool = True,
         normalize: bool = True,
@@ -179,8 +174,6 @@ class Sampler:
         # Constants
         self.BETA_TOLERANCE = 1e-4  # Tolerance for beta termination check
         self.ESS_TOLERANCE = 0.01  # Relative tolerance for ESS in beta bisection
-        self.DYNAMIC_RATIO_LOWER = 0.95  # Lower threshold for dynamic ESS adjustment
-        self.DYNAMIC_RATIO_UPPER = 1.05  # Upper threshold for dynamic ESS adjustment
         self.DOF_FALLBACK = 1e6  # Fallback value for non-finite degrees of freedom
         self.TRIM_ESS = 0.99  # ESS threshold for trimming importance weights
         self.TRIM_BINS = 1000  # Number of bins for weight trimming
@@ -289,13 +282,6 @@ class Sampler:
         else:
             self.metric = metric
 
-        # Dynamic ESS
-        self.dynamic = dynamic
-        self.dynamic_ratio = (
-            unique_sample_size(np.ones(self.n_effective), k=self.n_active)
-            / self.n_active
-        )
-
         # Sampling algorithm
         if sample not in ["tpcn", "rwm"]:
             raise ValueError(f"Invalid sample {sample}. Options are 'tpcn' or 'rwm'.")
@@ -308,7 +294,7 @@ class Sampler:
         if self.clustering:
             self.clusterer = HierarchicalGaussianMixture(
                 n_init=1,
-                max_iterations=n_max_clusters - 1,
+                max_iterations=1000 if n_max_clusters is None else n_max_clusters - 1,
                 min_points=None if n_max_clusters is None else 4 * self.n_dim,
                 threshold_modifier=split_threshold,
                 covariance_type="full",
@@ -482,16 +468,16 @@ class Sampler:
                 )
 
         # Choose next beta based on ESS of weights
-        weights = self._reweight()
+        weights = self.reweighter.run()
 
         # Train clustering and build mode statistics
-        mode_stats = self._train(weights)
+        mode_stats = self.trainer.run(weights)
 
         # Resample particles
-        self._resample(weights)
+        self.resampler.run(weights)
 
         # Evolve particles using MCMC
-        self._mutate(mode_stats)
+        self.mutator.run(mode_stats)
 
         # Update progress bar
         current = self.state.get_current()
@@ -568,9 +554,6 @@ class Sampler:
             metric=self.metric,
             ESS_TOLERANCE=self.ESS_TOLERANCE,
             BETA_TOLERANCE=self.BETA_TOLERANCE,
-            dynamic=self.dynamic,
-            DYNAMIC_RATIO_LOWER=self.DYNAMIC_RATIO_LOWER,
-            DYNAMIC_RATIO_UPPER=self.DYNAMIC_RATIO_UPPER,
             n_boost=self.n_boost,
             n_effective_init=self.n_effective_init,
             n_active_init=self.n_active_init,
@@ -614,22 +597,6 @@ class Sampler:
             reflective=self.reflective,
             have_blobs=self.have_blobs,
         )
-
-    def _mutate(self, mode_stats: ModeStatistics):
-        """Delegate to Mutator step class."""
-        self.mutator.run(mode_stats)
-
-    def _train(self, weights: np.ndarray) -> ModeStatistics:
-        """Delegate to Trainer step class."""
-        return self.trainer.run(weights)
-
-    def _resample(self, weights: np.ndarray):
-        """Delegate to Resampler step class."""
-        self.resampler.run(weights)
-
-    def _reweight(self):
-        """Delegate to Reweighter step class."""
-        return self.reweighter.run()
 
     def _log_like(self, x):
         """

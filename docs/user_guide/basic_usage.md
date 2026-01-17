@@ -312,7 +312,6 @@ sampler = tp.Sampler(
     clustering=True,
     normalize=True,
     metric='ess',
-    dynamic=True,
     resample='mult',
     output_dir='results',
     output_label='gaussian',

@@ -98,7 +98,10 @@ class SamplerFeaturesTestCase(unittest.TestCase):
         )
         try:
             sampler.run(n_total=128)
-            if hasattr(sampler, "acceptance") and sampler.state.get_current("acceptance") is not None:
+            if (
+                hasattr(sampler, "acceptance")
+                and sampler.state.get_current("acceptance") is not None
+            ):
                 self.assertGreater(sampler.state.get_current("acceptance"), 0.0)
         except Exception as e:
             # RWM might not be fully supported yet, skip if it fails
@@ -152,7 +155,6 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             n_effective=64,
             n_active=32,
             n_boost=None,
-            dynamic=False,
             clustering=False,
             random_state=0,
         )
@@ -162,23 +164,6 @@ class SamplerFeaturesTestCase(unittest.TestCase):
 
         # Check that n_effective did not change from initial
         self.assertEqual(sampler.n_effective, initial_n_effective)
-
-    def test_dynamic_ess(self):
-        """Test dynamic ESS adjustment."""
-        n_dim = 2
-        sampler = Sampler(
-            prior_transform=self.prior_transform_gaussian,
-            log_likelihood=self.log_likelihood_gaussian,
-            n_dim=n_dim,
-            vectorize=True,
-            n_effective=64,
-            n_active=32,
-            dynamic=True,
-            clustering=False,
-            random_state=0,
-        )
-        sampler.run(n_total=128)
-        self.assertTrue(sampler.dynamic)
 
     def test_posterior_method(self):
         """Test that posterior() method returns correct shapes."""

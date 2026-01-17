@@ -30,12 +30,6 @@ class Reweighter:
         Relative tolerance for ESS target (default: 0.01).
     BETA_TOLERANCE : float
         Tolerance for beta convergence (default: 1e-4).
-    dynamic : bool
-        Whether to dynamically adjust n_effective based on unique samples (default: False).
-    DYNAMIC_RATIO_LOWER : float
-        Lower ratio bound for dynamic adjustment (default: 0.95).
-    DYNAMIC_RATIO_UPPER : float
-        Upper ratio bound for dynamic adjustment (default: 1.05).
     n_boost : int, optional
         Target n_effective for boosting towards posterior (default: None).
     n_effective_init : int
@@ -62,9 +56,6 @@ class Reweighter:
         metric: str = "ess",
         ESS_TOLERANCE: float = 0.01,
         BETA_TOLERANCE: float = 1e-4,
-        dynamic: bool = False,
-        DYNAMIC_RATIO_LOWER: float = 0.95,
-        DYNAMIC_RATIO_UPPER: float = 1.05,
         n_boost: Optional[int] = None,
         n_effective_init: int = 512,
         n_active_init: int = 256,
@@ -74,7 +65,7 @@ class Reweighter:
         self.state = state
         self.pbar = pbar
 
-        # Mutable parameters (modified during dynamic/boost)
+        # Mutable parameters (modified during boost)
         self.n_effective = n_effective
         self.n_active = n_active
 
@@ -82,19 +73,10 @@ class Reweighter:
         self.metric = metric
         self.ESS_TOLERANCE = ESS_TOLERANCE
         self.BETA_TOLERANCE = BETA_TOLERANCE
-        self.dynamic = dynamic
-        self.DYNAMIC_RATIO_LOWER = DYNAMIC_RATIO_LOWER
-        self.DYNAMIC_RATIO_UPPER = DYNAMIC_RATIO_UPPER
         self.n_boost = n_boost
         self.n_effective_init = n_effective_init
         self.n_active_init = n_active_init
         self.BOOST_STEEPNESS = BOOST_STEEPNESS
-
-        # Compute dynamic ratio for reference
-        if self.dynamic and self.n_active > 0:
-            self.dynamic_ratio = self.n_effective / self.n_active
-        else:
-            self.dynamic_ratio = 1.0
 
     def run(self) -> np.ndarray:
         """
@@ -190,23 +172,6 @@ class Reweighter:
         logw, _ = self.state.compute_logw_and_logz(beta)
         weights = np.exp(logw - np.max(logw))
         weights /= np.sum(weights)
-
-        if self.dynamic:
-            # Adjust the number of effective particles based on the expected number of unique particles
-            n_unique_active = unique_sample_size(weights, k=self.n_active)
-            # Maintain the original ratio of unique active to effective particles
-            if n_unique_active < self.n_active * (
-                self.DYNAMIC_RATIO_LOWER * self.dynamic_ratio
-            ):
-                self.n_effective = int(
-                    self.n_active / n_unique_active * self.n_effective
-                )
-            elif n_unique_active > self.n_active * np.minimum(
-                self.DYNAMIC_RATIO_UPPER * self.dynamic_ratio, 1.0
-            ):
-                self.n_effective = int(
-                    n_unique_active / self.n_active * self.n_effective
-                )
 
         if self.n_boost is not None:
             _, posterior_ess = get_weights_and_ess(1.0)

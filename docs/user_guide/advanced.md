@@ -2,28 +2,7 @@
 
 This guide covers advanced features of Tempest for complex sampling problems.
 
-## Dynamic Sampling
-
-Tempest can dynamically adjust the number of effective particles based on the sampling progress.
-
-### Enabling Dynamic Mode
-
-```python
-sampler = tp.Sampler(
-    prior_transform=prior_transform,
-    log_likelihood=log_likelihood,
-    n_dim=n_dim,
-    dynamic=True,  # Default: True
-)
-```
-
-With `dynamic=True`, Tempest automatically adjusts `n_effective` based on the effective sample size (ESS) of importance weights. This is particularly useful when:
-
-- The target distribution is far from the prior
-- There are strong correlations between parameters
-- The distribution is multimodal
-
-### Boosting Particles
+## Boosting Particles
 
 Use `n_boost` to gradually increase particle count as sampling approaches the posterior:
 

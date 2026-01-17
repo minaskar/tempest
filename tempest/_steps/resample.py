@@ -64,7 +64,7 @@ class Resampler:
             - blobs: auxiliary data (shape: [n_active, ...] if enabled)
             - assignments: cluster labels (shape: [n_active])
         """
-        # Get current n_active (may have changed due to dynamic/boost)
+        # Get current n_active (may have changed due to boost)
         n_active = self.n_active_fn()
 
         # Skip resampling during warmup (beta=0) - will draw fresh prior samples

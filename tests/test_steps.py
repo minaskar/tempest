@@ -99,35 +99,6 @@ class ReweighterTestCase(unittest.TestCase):
         self.assertGreater(len(weights2), 0)
         np.testing.assert_allclose(np.sum(weights2), 1.0)
 
-    def test_dynamic_adjustment(self):
-        """Test dynamic ESS adjustment based on unique samples."""
-        reweighter = Reweighter(
-            state=self.state,
-            pbar=None,
-            n_effective=32,
-            n_active=16,
-            dynamic=True,
-            DYNAMIC_RATIO_LOWER=0.95,
-            DYNAMIC_RATIO_UPPER=1.05,
-        )
-
-        initial_n_effective = reweighter.n_effective
-
-        # Add history
-        u = np.random.rand(16, self.n_dim)
-        x = u * 2 - 1
-        logl = -0.5 * np.sum(x**2, axis=1)
-        self.state.update_current({"u": u, "x": x, "logl": logl})
-        self.state.commit_current_to_history()
-
-        # Run reweighting
-        reweighter.run()
-
-        # n_effective may have changed due to dynamic adjustment
-        # Just verify it's still a positive integer
-        self.assertIsInstance(reweighter.n_effective, int)
-        self.assertGreater(reweighter.n_effective, 0)
-
     def test_boosting(self):
         """Test boosting increases n_effective and n_active toward posterior."""
         reweighter = Reweighter(

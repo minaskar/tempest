@@ -2,15 +2,21 @@
 
 This guide is for agentic coding assistants working on the Tempest codebase.
 
+**Python Support:** 3.8, 3.9, 3.10, 3.11
+
 ## Build/Lint/Test Commands
 
 ### Environment Setup
 ```bash
-# Create virtual environment with uv
+# Create virtual environment with uv (recommended)
+# Creates .venv and installs dependencies from uv.lock
 uv sync
 
-# Activate venv (manual)
+# Activate venv (created automatically by uv sync)
 source .venv/bin/activate
+
+# Or using pip (alternative)
+pip install -r requirements.txt
 ```
 
 ### Running Tests
@@ -21,12 +27,18 @@ python -m unittest discover tests
 # Run single test file
 python -m unittest tests.test_sampler
 
+# Run specific test class
+python -m unittest tests.test_sampler.SamplerTestCase
+
 # Run specific test method
 python -m unittest tests.test_sampler.SamplerTestCase.test_run
 
 # Run with pytest (if installed)
 pytest tests/
+pytest tests/test_sampler.py::SamplerTestCase::test_run
 ```
+
+Available test files: `test_sampler.py`, `test_tools.py`, `test_mcmc.py`, `test_cluster.py`, `test_modes.py`, `test_steps.py`, `test_state_manager.py`, `test_state.py`, `test_student.py`, `test_edge_cases.py`, `test_sampler_features.py`, `test_sample_method.py`
 
 ### Linting
 ```bash
@@ -39,11 +51,11 @@ flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statist
 
 ### Building
 ```bash
-# Install from source
-python setup.py install
-
-# Or using uv
+# Install in editable mode (recommended for development)
 uv pip install -e .
+
+# Or using pip
+pip install -e .
 ```
 
 ## Code Style Guidelines
@@ -93,7 +105,7 @@ def prior_transform(u):
 ```
 
 ### Naming Conventions
-- **Classes**: PascalCase (`Sampler`, `Particles`, `HierarchicalGaussianMixture`)
+- **Classes**: PascalCase (`Sampler`, `StateManager`, `HierarchicalGaussianMixture`)
 - **Functions/Methods**: snake_case (`run`, `prior_transform`, `log_likelihood`)
 - **Constants**: UPPER_SNAKE_CASE (`BETA_TOLERANCE`, `ESS_TOLERANCE`)
 - **Private methods**: leading underscore (`_reweight`, `_mutate`, `_train`)
@@ -137,9 +149,11 @@ Use `multiprocess.Pool` for parallelization. The sampler accepts `pool` paramete
 
 ### Important Patterns
 - The main class is `Sampler` in `tempest/sampler.py`
-- Core algorithm: `_reweight()` → `_train()` → `_resample()` → `_mutate()` (in `sample()` method)
-- Particles managed by `Particles` class in `tempest/particles.py`
-- State persistence via `save_state()`/`load_state()` using `dill`
+- Core algorithm steps in `tempest/_steps/`: `Reweighter`, `Trainer`, `Resampler`, `Mutator`
+- State persistence via `StateManager` class in `tempest/state_manager.py` (uses `dill`)
+- Clustering via `GaussianMixture` and `HierarchicalGaussianMixture` in `tempest/cluster.py`
+- Mode analysis via `ModeStatistics` in `tempest/modes.py`
+- MCMC runners (`_TPCNRunner`, `_RWMRunner`) in `tempest/mcmc.py`
 
 ### Dependencies
 Core dependencies: `numpy`, `scipy`, `tqdm`, `dill`, `multiprocess`. All defined in `pyproject.toml` and `requirements.txt`.
