@@ -1,145 +1,22 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, List
 
-import os
-import dill
-import numpy as np
-from multiprocess import Pool
-
-from .mcmc import parallel_mcmc
-from .tools import (
-    systematic_resample,
-    FunctionWrapper,
-    trim_weights,
-    ProgressBar,
-    effective_sample_size,
-    unique_sample_size,
-)
+from .config import SamplerConfig
+from ._core import SamplerCore
 from .state_manager import StateManager
-from .cluster import HierarchicalGaussianMixture
-from .modes import ModeStatistics
-from ._steps import Reweighter, Trainer, Resampler, Mutator
+from .tools import FunctionWrapper
 
 
 class Sampler:
-    r"""Persistent Sampling class.
+    """
+    Public API facade for Tempest sampler - maintains backward compatibility.
 
-    Parameters
-    ----------
-    prior_transform : callable
-        Class implementing the prior distribution.
-    log_likelihood : callable
-        Function returning the log likelihood of a set of parameters.
-    n_dim : int
-        The total number of parameters/dimensions (Optional as it can be infered from the prior class).
-    n_effective : int
-        The number of effective particles (default is ``n_effective=512``). Higher values
-        lead to more accurate results but also increase the computational cost.  This should be
-        set to a value that is large enough to ensure that the target distribution is well
-        represented by the samples. The number of effective samples should be greater than
-        the number of active particles. If ``n_effective=None``, the default value is ``n_effective=2*n_active``.
-    n_active : int
-        The number of active particles (default is ``n_active=256``). It must be smaller than ``n_effective``.
-        For best results, the number of active particles should be no more than half the number of effective particles.
-        This is the number of particles that are evolved using MCMC at each iteration. If a pool is provided,
-        the number of active particles should be a multiple of the number of processes in the pool to ensure
-        efficient parallelisation. If ``n_active=None``, the default value is ``n_active=n_effective//2``.
-    n_boost : int or ``None``
-        Target number of effective particles to boost towards as the sampler approaches the posterior
-        (default is ``n_boost=None``). When provided and greater than ``n_effective``, the number of effective
-        and active particles will gradually increase from their initial values to ``n_boost`` based on the posterior
-        ESS, improving sampling efficiency in the later stages. If ``n_boost == n_effective``, no boosting occurs.
-    log_likelihood_args : list
-        Extra arguments to be passed to log_likelihood (default is ``log_likelihood_args=None``). Example:
-        ``log_likelihood_args=[data]``.
-    log_likelihood_kwargs : dict
-        Extra arguments to be passed to log_likelihood (default is ``log_likelihood_kwargs=None``). Example:
-        ``log_likelihood_kwargs={"data": data}``.
-    vectorize : bool
-        If True, vectorize ``likelihood`` calculation (default is ``vectorize=False``). If False,
-        the likelihood is calculated for each particle individually. If ``vectorize=True``, the likelihood
-        is calculated for all particles simultaneously. This can lead to a significant speed-up if the likelihood
-        function is computationally expensive. However, it requires that the likelihood function can handle
-        arrays of shape ``(n_active, n_dim)`` as input and return an array of shape ``(n_active,)`` as output.
-    blobs_dtype : list
-        Data type of the blobs returned by the likelihood function (default is ``blobs_dtype=None``). If ``blobs_dtype``
-        is not provided, the data type is inferred from the blobs returned by the likelihood function. If the blobs
-        are not of the same data type, they are converted to an object array. If the blobs are strings, the data type
-        is set to ``object``. If the blobs ``dtype`` is known in advance, it can be provided as a list of data types
-        (e.g., ``blobs_dtype=[("blob_1", float), ("blob_2", int)]``). Blobs can be used to store additional data
-        returned by the likelihood function (e.g., chi-squared values, residuals, etc.). Blobs are stored as a
-        structured array with named fields when the data type is provided. Currently, the blobs feature is not
-        compatible with vectorized likelihood calculations.
-    periodic : list or ``None``
-        List of parameter indeces that should be wrapped around the domain (default is ``periodic=None``).
-        This can be useful for phase parameters that might be periodic e.g. on a range ``[0,2*np.pi]``. For example,
-        ``periodic=[0,1]`` will wrap around the first and second parameters.
-    reflective : list or ``None``
-        List of parameter indeces that should be reflected around the domain (default is ``reflective=None``).
-        This can arise in cases where parameters are ratios where ``a/b`` and  ``b/a`` are equivalent. For example,
-        ``reflective=[0,1]`` will reflect the first and second parameters.
-    pool : pool or int
-        Number of processes to use for parallelisation (default is ``pool=None``). If ``pool`` is an integer
-        greater than 1, a ``multiprocessing`` pool is created with the specified number of processes (e.g., ``pool=8``).
-        If ``pool`` is an instance of ``mpi4py.futures.MPIPoolExecutor``, the code runs in parallel using MPI.
-        If a pool is provided, the number of active particles should be a multiple of the number of processes in
-        the pool to ensure efficient parallelisation. If ``pool=None``, the code runs in serial mode. When a pool
-        is provided, please ensure that the likelihood function is picklable.
-    train_frequency : int or None
-        Frequency of training the normalizing flow (default is ``train_frequency=None``).
-        If ``train_frequency=None``, the normalizing flow is trained every ``n_effective//n_active``
-        iterations. If ``train_frequency=1``, the normalizing flow is trained at every iteration.
-        If ``train_frequency>1``, the normalizing flow is trained every ``train_frequency`` iterations.
-    clustering : bool
-        If True, enable hierarchical Gaussian mixture clustering of particles (default is
-        ``clustering=True``).
-    normalize : bool
-        If True, normalize input data to [0,1]^D before clustering (default is ``normalize=True``).
-        This can improve clustering performance when parameters have very different scales.
-    split_threshold : float
-        Multiplicative factor applied to the automatically computed BIC threshold when considering
-        cluster splits (default is ``split_threshold=1.0``). Values larger than one make splits harder;
-        values between zero and one make them easier.
-    metric : str
-        Metric used for determining the next temperature (``beta``) level (default is ``metric="ess"``).
-        Options are ``"ess"`` (Effective Sample Size) or ``"uss"`` (Unique Sample Size). The metric
-        is used to determine the next temperature level based on the ESS or USS of the importance
-        weights. If the ESS or USS of the importance weights is below the target threshold, the
-        temperature is increased. If the ESS or USS is above the target threshold, the temperature
-        is decreased. The target threshold is set by the ``n_effective`` parameter.
-
-    Note
-    ----
-    The sampler uses an adaptive temperature scheduler that automatically maintains
-    beta=0 (prior sampling) until the effective sample size reaches n_effective.
-    This adaptive warmup ensures sufficient prior samples are accumulated before
-    transitioning to tempered sampling, without requiring a preset iteration count.
-    sample : ``str``
-        Type of MCMC sampler to use (default is ``sample="tpcn"``). Options are
-        ``"pcn"`` (t-preconditioned Crank-Nicolson) or ``"rwm"`` (Random-walk Metropolis).
-        t-preconditioned Crank-Nicolson is the default and recommended sampler for PS as it
-        is more efficient and scales better with the number of parameters.
-    n_steps : int
-        Number of MCMC steps after logP plateau (default is ``n_steps=n_dim``). This is used
-        for early stopping of MCMC. Higher values can lead to better exploration but also
-        increase the computational cost. If ``n_steps=None``, the default value is ``n_steps=n_dim``.
-    n_max_steps : int
-        Maximum number of MCMC steps (default is ``n_max_steps=10*n_dim``).
-    resample : ``str``
-        Resampling scheme to use (default is ``resample="mult"``). Options are
-        ``"syst"`` (systematic resampling) or ``"mult"`` (multinomial resampling).
-    output_dir : ``str`` or ``None``
-        Output directory for storing the state files of the
-        sampler. Default is ``None`` which creates a ``states``
-        directory. Output files can be used to resume a run.
-    output_label : ``str`` or ``None``
-        Label used in state files. Defaullt is ``None`` which
-        corresponds to ``"ps"``. The saved states are named
-        as ``"{output_dir}/{output_label}_{i}.state"`` where
-        ``i`` is the iteration index.  Output files can be
-        used to resume a run.
-    random_state : int or ``None``
-        Initial random seed.
+    All configuration and algorithm logic is delegated to internal components:
+    - SamplerConfig: validates and stores configuration
+    - SamplerCore: executes the sampling algorithm
+    - StateManager: manages current and historical state
     """
 
     def __init__(
@@ -156,7 +33,7 @@ class Sampler:
         blobs_dtype: Optional[str] = None,
         periodic: Optional[list] = None,
         reflective: Optional[list] = None,
-        pool: Optional[Union[int, Pool]] = None,
+        pool: Optional[Union[int, object]] = None,
         clustering: bool = True,
         normalize: bool = True,
         cluster_every: int = 1,
@@ -171,167 +48,65 @@ class Sampler:
         output_label: Optional[str] = None,
         random_state: Optional[int] = None,
     ):
-        # Constants
-        self.BETA_TOLERANCE = 1e-4  # Tolerance for beta termination check
-        self.ESS_TOLERANCE = 0.01  # Relative tolerance for ESS in beta bisection
-        self.DOF_FALLBACK = 1e6  # Fallback value for non-finite degrees of freedom
-        self.TRIM_ESS = 0.99  # ESS threshold for trimming importance weights
-        self.TRIM_BINS = 1000  # Number of bins for weight trimming
-        self.BOOST_STEEPNESS = 0.125  # Steepness of the transition for n_active boost
+        """
+        Initialize Tempest sampler.
 
-        # Random seed
-        if random_state is not None:
-            np.random.seed(random_state)
-        self.random_state = random_state
-
-        # Prior distribution
-        self.prior_transform = prior_transform
-
-        # Log likelihood function
-        self.log_likelihood = FunctionWrapper(
+        Parameters are validated and stored in SamplerConfig, then delegated
+        to SamplerCore for execution.
+        """
+        # Wrap likelihood function
+        wrapped_likelihood = FunctionWrapper(
             log_likelihood, log_likelihood_args, log_likelihood_kwargs
         )
 
-        # Blobs data type
-        self.blobs_dtype = blobs_dtype
-        self.have_blobs = blobs_dtype is not None
+        # Create validated configuration
+        config = SamplerConfig(
+            prior_transform=prior_transform,
+            log_likelihood=wrapped_likelihood,
+            n_dim=n_dim,
+            n_effective=n_effective,
+            n_active=n_active,
+            n_boost=n_boost,
+            log_likelihood_args=log_likelihood_args,
+            log_likelihood_kwargs=log_likelihood_kwargs,
+            vectorize=vectorize,
+            blobs_dtype=blobs_dtype,
+            periodic=periodic,
+            reflective=reflective,
+            pool=pool,
+            clustering=clustering,
+            normalize=normalize,
+            cluster_every=cluster_every,
+            split_threshold=split_threshold,
+            n_max_clusters=n_max_clusters,
+            metric=metric,
+            sample=sample,
+            n_steps=n_steps,
+            n_max_steps=n_max_steps,
+            resample=resample,
+            output_dir=output_dir,
+            output_label=output_label,
+            random_state=random_state,
+        )
 
-        # Number of parameters
-        self.n_dim = int(n_dim)
+        # Create state manager
+        state = StateManager(n_dim)
 
-        # Periodic and reflective boundary conditions
-        self.periodic = np.array(periodic) if periodic is not None else None
-        self.reflective = np.array(reflective) if reflective is not None else None
+        # Create internal coordinator
+        self._core = SamplerCore(config, state)
 
-        # Check that at least one parameter is provided
-        if n_active is None and n_effective is None:
-            raise ValueError(
-                "At least one of n_active or n_effective must be provided."
-            )
-
-        # Number of active particles
-        if n_active is None:
-            self.n_active = int(n_effective / 2)
-        else:
-            self.n_active = int(n_active)
-        self.n_active_init = self.n_active
-
-        # Effective Sample Size
-        if n_effective is None:
-            self.n_effective = int(2 * n_active)
-        else:
-            self.n_effective = int(n_effective)
-        self.n_effective_init = self.n_effective
-
-        # Boost factor
-        if n_boost is None:
-            self.n_boost = None
-        else:
-            self.n_boost = int(n_boost)
-            if self.n_boost < self.n_effective:
-                raise ValueError(
-                    f"n_boost ({self.n_boost}) must be >= n_effective ({self.n_effective})"
-                )
-
-        # Number of MCMC steps after logP plateau
-        if n_steps is None:
-            self.n_steps = int(self.n_dim // 2)
-        else:
-            self.n_steps = int(n_steps)
-
-        # Maximum number of MCMC steps
-        if n_max_steps is None:
-            self.n_max_steps = 10 * self.n_steps
-        else:
-            self.n_max_steps = int(n_max_steps)
-
-        # Total ESS for termination
-        self.n_total = None
-
-        # State manager
-        self.state = StateManager(n_dim)
-
-        # Parallelism
-        self.pool = pool
-        if pool is None:
-            self.distribute = map
-        elif isinstance(pool, int) and pool > 1:
-            self.pool = Pool(pool)
-            self.distribute = self.pool.map
-        else:
-            self.distribute = pool.map
-
-        # Likelihood vectorization
-        self.vectorize = vectorize
-        if self.vectorize and self.have_blobs:
-            raise ValueError("Cannot vectorize likelihood with blobs.")
-
-        # Output
-        if output_dir is None:
-            self.output_dir = Path("states")
-        else:
-            self.output_dir = Path(output_dir)
-        if output_label is None:
-            self.output_label = "ps"
-        else:
-            self.output_label = output_label
-
-        # Effective vs Unique Sample Size
-        if metric not in ["ess", "uss"]:
-            raise ValueError(f"Invalid metric {metric}. Options are 'ess' or 'uss'.")
-        else:
-            self.metric = metric
-
-        # Sampling algorithm
-        if sample not in ["tpcn", "rwm"]:
-            raise ValueError(f"Invalid sample {sample}. Options are 'tpcn' or 'rwm'.")
-        else:
-            self.sampler = sample
-
-        # Clusterer
-        self.clustering = clustering
-        self.normalize = normalize
-        if self.clustering:
-            self.clusterer = HierarchicalGaussianMixture(
-                n_init=1,
-                max_iterations=1000 if n_max_clusters is None else n_max_clusters - 1,
-                min_points=None if n_max_clusters is None else 4 * self.n_dim,
-                threshold_modifier=split_threshold,
-                covariance_type="full",
-                normalize=normalize,
-                verbose=False,
-            )
-        else:
-            self.clusterer = None
-        self.cluster_every = cluster_every
-        self.cluster_every_init = cluster_every
-        self.K = 1
-
-        # Resampling algorithm
-        if resample not in ["mult", "syst"]:
-            raise ValueError(
-                f"Invalid resample {resample}. Options are 'mult' or 'syst'."
-            )
-        else:
-            self.resample = resample
-
-        self.progress = None
-        self.pbar = None
-
-        # Initialize step classes (will be fully configured in run())
-        self.reweighter = None
-        self.trainer = None
-        self.resampler = None
-        self.mutator = None
+        # Expose state for backward compatibility (tests access sampler.state)
+        self.state = state
 
     def run(
         self,
         n_total: int = 4096,
         progress: bool = True,
-        resume_state_path: Union[str, Path] = None,
-        save_every: int = None,
+        resume_state_path: Union[str, Path, None] = None,
+        save_every: Optional[int] = None,
     ):
-        r"""Run Persistent Sampling.
+        """
+        Run Persistent Sampling.
 
         Parameters
         ----------
@@ -340,351 +115,51 @@ class Sampler:
             collected (default is ``n_total=4096``).
         progress : bool
             If True, print progress bar (default is ``progress=True``).
-        resume_state_path : ``Union[str, Path]``
+        resume_state_path : str or Path or None
             Path of state file used to resume a run. Default is ``None`` in which case
-            the sampler does not load any previously saved states. An example of using
-            this option to resume or continue a run is e.g. ``resume_state_path = "states/ps_1.state"``.
-        save_every : ``int`` or ``None``
+            the sampler does not load any previously saved states.
+        save_every : int or None
             Argument which determines how often (i.e. every how many iterations) ``Tempest`` saves
             state files to the ``output_dir`` directory. Default is ``None`` in which case no state
             files are stored during the run.
         """
-        if resume_state_path is not None:
-            self.load_state(resume_state_path)
-            t0 = (
-                int(self.state.get_current("iter"))
-                if self.state.get_current("iter") is not None
-                else 0
-            )
-            # Initialise progress bar
-            self.pbar = ProgressBar(self.progress, initial=t0)
+        return self._core.run_sampling(
+            n_total=n_total,
+            progress=progress,
+            resume_state_path=resume_state_path,
+            save_every=save_every,
+        )
 
-            self.pbar.update_stats(
-                dict(
-                    beta=self.state.get_last_history("beta", default=0),
-                    calls=self.state.get_last_history("calls", default=0),
-                    ESS=self.state.get_last_history("ess", default=0),
-                    logZ=self.state.get_last_history("logz", default=0),
-                    logL=np.mean(self.state.get_last_history("logl", default=[0])),
-                    acc=self.state.get_last_history("acceptance", default=0),
-                    steps=self.state.get_last_history("steps", default=0),
-                    eff=self.state.get_last_history("efficiency", default=0),
-                    K=getattr(
-                        self, "K", len(getattr(self, "means", np.atleast_2d([0])))
-                    ),
-                )
-            )
-            self.logz_err = None
-
-            # Initialize step classes
-            self._initialize_steps()
-        else:
-            t0 = 0
-            self.state.set_current("iter", 0)
-            self.state.set_current("calls", 0)
-            self.state.set_current("beta", 0.0)
-            self.state.set_current("logz", 0.0)
-            # Run parameters
-            self.progress = progress
-
-            # Initialise progress bar
-            self.pbar = ProgressBar(self.progress)
-            self.pbar.update_stats(
-                dict(
-                    beta=0.0,
-                    calls=0,
-                    ESS=self.n_effective,
-                    logZ=0.0,
-                    logL=0.0,
-                    acc=0.0,
-                    steps=0,
-                    eff=0.0,
-                    K=1,
-                )
-            )
-
-            # Initialize step classes
-            self._initialize_steps()
-
-        self.n_total = int(n_total)
-
-        # Run PS loop (adaptive warmup and annealing)
-        while self._not_termination():
-            self.sample(save_every=save_every, t0=t0)
-
-        # Compute evidence
-        _, logz = self.state.compute_logw_and_logz(1.0)
-        self.state.set_current("logz", logz)
-        self.logz_err = None
-
-        # Save final state
-        if save_every is not None:
-            self.save_state(self.output_dir / f"{self.output_label}_final.state")
-
-        # Close progress bar
-        self.pbar.close()
-
-    def sample(self, save_every: int = None, t0: int = 0):
-        r"""Perform a single iteration of the PS algorithm.
-
-        This method performs one iteration of the Persistent Sampling
-        algorithm, including reweighting, training, resampling, and mutation steps.
-        It can be used to run the sampler step-by-step for more fine-grained control.
+    def sample(self, save_every: Optional[int] = None, t0: int = 0) -> dict:
+        """
+        Perform a single iteration of the PS algorithm.
 
         Parameters
         ----------
-        save_every : ``int`` or ``None``
+        save_every : int or None
             Argument which determines how often (i.e. every how many iterations) ``Tempest`` saves
             state files to the ``output_dir`` directory. Default is ``None`` in which case no state
             files are stored during the run.
-        t0 : ``int``
+        t0 : int
             The starting iteration index, used for determining when to save states.
             Default is ``0``.
 
         Returns
         -------
         state : dict
-            Dictionary containing the current state of the particles with keys:
-            - "u": Unit hypercube coordinates of particles
-            - "x": Physical coordinates of particles
-            - "logl": Log-likelihood values
-            - "assignments": Cluster assignments
-            - "blobs": Additional data from likelihood (if available)
-            - "iter": Current iteration index
-            - "calls": Total number of likelihood evaluations
-            - "steps": Number of MCMC steps taken
-            - "efficiency": MCMC efficiency
-            - "ess": Effective sample size
-            - "accept": Acceptance rate
-            - "beta": Current inverse temperature
-            - "logz": Current log-evidence estimate
+            Dictionary containing the current state of the particles.
         """
-        # Save state if requested
-        if save_every is not None:
-            iter_val = self.state.get_current("iter")
-            if (iter_val - t0) % int(save_every) == 0 and iter_val != t0:
-                self.save_state(
-                    self.output_dir / f"{self.output_label}_{iter_val}.state"
-                )
-
-        # Choose next beta based on ESS of weights
-        weights = self.reweighter.run()
-
-        # Train clustering and build mode statistics
-        mode_stats = self.trainer.run(weights)
-
-        # Resample particles
-        self.resampler.run(weights)
-
-        # Evolve particles using MCMC
-        self.mutator.run(mode_stats)
-
-        # Update progress bar
-        current = self.state.get_current()
-        self.pbar.update_stats(
-            dict(
-                calls=current["calls"],
-                beta=current["beta"],
-                ESS=int(current["ess"]),
-                logZ=current["logz"],
-                logL=np.mean(current["logl"]) if current["logl"] is not None else 0.0,
-                acc=current["acceptance"],
-                steps=current["steps"],
-                eff=current["efficiency"],
-            )
-        )
-
-        # Save particles
-        self.state.commit_current_to_history()
-
-        # Return current state
-        return {
-            "u": current["u"],
-            "x": current["x"],
-            "logl": current["logl"],
-            "assignments": current["assignments"],
-            "blobs": current["blobs"] if self.have_blobs else None,
-            "iter": current["iter"],
-            "calls": current["calls"],
-            "steps": current["steps"],
-            "efficiency": current["efficiency"],
-            "ess": current["ess"],
-            "acceptance": current["acceptance"],
-            "beta": current["beta"],
-            "logz": current["logz"],
-        }
-
-    def _not_termination(self):
-        """
-        Check if termination criterion is satisfied.
-
-        Parameters
-        ----------
-        current_particles : dict
-            Dictionary containing the current particles.
-
-        Returns
-        -------
-        termination : bool
-            True if termination criterion is not satisfied.
-        """
-        log_weights, _ = self.state.compute_logw_and_logz(1.0)
-
-        # If no particles yet (first iteration), continue
-        if len(log_weights) == 0:
-            return True
-
-        weights = np.exp(log_weights - np.max(log_weights))
-        if self.metric == "ess":
-            ess = effective_sample_size(weights)
-        elif self.metric == "uss":
-            ess = unique_sample_size(weights)
-
-        beta = self.state.get_current("beta")
-        return 1.0 - beta >= self.BETA_TOLERANCE or ess < self.n_total
-
-    def _initialize_steps(self):
-        """Initialize the four step classes for the PS algorithm."""
-        # Reweighter - owns mutable n_effective and n_active
-        self.reweighter = Reweighter(
-            state=self.state,
-            pbar=self.pbar,
-            n_effective=self.n_effective,
-            n_active=self.n_active,
-            metric=self.metric,
-            ESS_TOLERANCE=self.ESS_TOLERANCE,
-            BETA_TOLERANCE=self.BETA_TOLERANCE,
-            n_boost=self.n_boost,
-            n_effective_init=self.n_effective_init,
-            n_active_init=self.n_active_init,
-            BOOST_STEEPNESS=self.BOOST_STEEPNESS,
-        )
-
-        # Trainer - fits clustering and builds mode statistics
-        self.trainer = Trainer(
-            state=self.state,
-            pbar=self.pbar,
-            clusterer=self.clusterer,
-            cluster_every=self.cluster_every,
-            clustering=self.clustering,
-            TRIM_ESS=self.TRIM_ESS,
-            TRIM_BINS=self.TRIM_BINS,
-            DOF_FALLBACK=self.DOF_FALLBACK,
-        )
-
-        # Resampler - resamples particles from history
-        self.resampler = Resampler(
-            state=self.state,
-            n_active_fn=lambda: self.reweighter.n_active,
-            resample=self.resample,
-            clusterer=self.clusterer,
-            clustering=self.clustering,
-            have_blobs=self.have_blobs,
-        )
-
-        # Mutator - evolves particles via MCMC
-        self.mutator = Mutator(
-            state=self.state,
-            prior_transform=self.prior_transform,
-            log_likelihood=self._log_like,
-            pbar=self.pbar,
-            n_active_fn=lambda: self.reweighter.n_active,
-            n_dim=self.n_dim,
-            n_steps=self.n_steps,
-            n_max_steps=self.n_max_steps,
-            sampler=self.sampler,
-            periodic=self.periodic,
-            reflective=self.reflective,
-            have_blobs=self.have_blobs,
-        )
-
-    def _log_like(self, x):
-        """
-        Compute log likelihood.
-
-        Parameters
-        ----------
-        x : array_like
-            Array of parameter values.
-
-        Returns
-        -------
-        logl : float
-            Log likelihood.
-        blob : array_like
-            Additional data (default is ``None``).
-        """
-        if self.vectorize:
-            return self.log_likelihood(x), None
-        elif self.pool is not None:
-            results = list(self.distribute(self.log_likelihood, x))
-        else:
-            results = list(map(self.log_likelihood, x))
-
-        try:
-            blob = [l[1:] for l in results if len(l) > 1]
-            if not len(blob):
-                raise IndexError
-            logl = np.array([float(l[0]) for l in results])
-            self.have_blobs = True
-        except (IndexError, TypeError):
-            logl = np.array([float(l) for l in results])
-            blob = None
-        else:
-            # Get the blobs dtype
-            if self.blobs_dtype is not None:
-                dt = self.blobs_dtype
-            else:
-                try:
-                    dt = np.atleast_1d(blob[0]).dtype
-                except ValueError:
-                    dt = np.dtype("object")
-                if dt.kind in "US":
-                    # Strings need to be object arrays or we risk truncation
-                    dt = np.dtype("object")
-            blob = np.array(blob, dtype=dt)
-
-            # Deal with single blobs properly
-            shape = blob.shape[1:]
-            if len(shape):
-                axes = np.arange(len(shape))[np.array(shape) == 1] + 1
-                if len(axes):
-                    blob = np.squeeze(blob, tuple(axes))
-
-        return logl, blob
-
-    def evidence(self):
-        """
-        Return log evidence estimate and error.
-        """
-        logz = self.state.get_current("logz")
-        return logz, getattr(self, "logz_err", None)
-
-    def __getstate__(self):
-        """
-        Get state information for pickling.
-        """
-        state = self.__dict__.copy()
-
-        try:
-            # deal with pool
-            if state["pool"] is not None:
-                del state["pool"]  # remove pool
-                del state["distribute"]  # remove `pool.map` function hook
-        except (KeyError, TypeError):
-            pass
-
-        return state
+        return self._core.execute_iteration(save_every=save_every, t0=t0)
 
     def posterior(
         self,
-        resample=False,
-        return_blobs=False,
-        trim_importance_weights=True,
-        return_logw=False,
-        ess_trim=0.99,
-        bins_trim=1_000,
-    ):
+        resample: bool = False,
+        return_blobs: bool = False,
+        trim_importance_weights: bool = True,
+        return_logw: bool = False,
+        ess_trim: float = 0.99,
+        bins_trim: int = 1000,
+    ) -> tuple:
         """
         Return posterior samples.
 
@@ -692,6 +167,8 @@ class Sampler:
         ----------
         resample : bool
             If True, resample particles (default is ``resample=False``).
+        return_blobs : bool
+            If True, return auxiliary data from likelihood (default is ``return_blobs=False``).
         trim_importance_weights : bool
             If True, trim importance weights (default is ``trim_importance_weights=True``).
         return_logw : bool
@@ -699,143 +176,174 @@ class Sampler:
         ess_trim : float
             Effective sample size threshold for trimming (default is ``ess_trim=0.99``).
         bins_trim : int
-            Number of bins for trimming (default is ``bins_trim=1_000``).
+            Number of bins for trimming (default is ``bins_trim=1000``).
 
         Returns
         -------
-        samples : ``np.ndarray``
-            Samples from the posterior.
-        weights : ``np.ndarray``
+        x : np.ndarray
+            Physical coordinates of posterior samples.
+        weights : np.ndarray
             Importance weights.
-        logl : ``np.ndarray``
-            Log likelihoods.
-        logp : ``np.ndarray``
-            Log priors.
+        logl : np.ndarray
+            Log-likelihood values.
+        blobs : np.ndarray (optional)
+            Auxiliary data if return_blobs=True.
+        logw : np.ndarray (optional)
+            Log importance weights if return_logw=True.
         """
-        if return_blobs and not self.have_blobs:
-            raise ValueError("No blobs available.")
+        return self._core.compute_posterior(
+            resample=resample,
+            return_blobs=return_blobs,
+            trim_importance_weights=trim_importance_weights,
+            return_logw=return_logw,
+            ess_trim=ess_trim,
+            bins_trim=bins_trim,
+        )
 
-        samples = self.state.get_history("x", flat=True)
-        logl = self.state.get_history("logl", flat=True)
-        if return_blobs:
-            blobs = self.state.get_history("blobs", flat=True)
-        logw, _ = self.state.compute_logw_and_logz(1.0)
-        weights = np.exp(logw)
-
-        if trim_importance_weights:
-            idx, weights = trim_weights(
-                np.arange(len(samples)), weights, ess=ess_trim, bins=bins_trim
-            )
-            samples = samples[idx]
-            logl = logl[idx]
-            logw = logw[idx]
-            if return_blobs:
-                blobs = blobs[idx]
-
-        if resample:
-            if self.resample == "mult":
-                idx_resampled = np.random.choice(
-                    np.arange(len(weights)), size=len(samples), replace=True, p=weights
-                )
-            elif self.resample == "syst":
-                idx_resampled = systematic_resample(len(weights), weights=weights)
-            if return_blobs:
-                return samples[idx_resampled], logl[idx_resampled], blobs[idx_resampled]
-            else:
-                return samples[idx_resampled], logl[idx_resampled]
-
-        else:
-            if return_logw:
-                if return_blobs:
-                    return samples, logw, logl, blobs
-                else:
-                    return samples, logw, logl
-            else:
-                if return_blobs:
-                    return samples, weights, logl, blobs
-                else:
-                    return samples, weights, logl
-
-    @property
-    def results(self):
+    def evidence(self) -> tuple[float, Optional[float]]:
         """
-        Return results.
+        Return log evidence estimate and error.
 
         Returns
         -------
-        results : dict
-            Dictionary containing the results.
+        logz : float
+            Log evidence estimate.
+        logz_err : float or None
+            Error estimate (currently None, for future use).
         """
-        return self.state.compute_results()
+        return self._core.compute_evidence()
 
     def save_state(self, path: Union[str, Path]):
-        """Save current state of sampler to file.
+        """
+        Save sampler state to file.
 
         Parameters
         ----------
-        path : ``Union[str, Path]``
-            Path to save state.
+        path : str or Path
+            Path where state will be saved.
         """
-        print(f"Saving PS state to {path}")
-
-        # Save sampler-specific attributes (exclude non-picklable items)
-        sampler_state = {
-            k: v
-            for k, v in self.__dict__.items()
-            if k
-            not in [
-                "pbar",
-                "pool",
-                "distribute",
-                "state",
-                "reweighter",
-                "trainer",
-                "resampler",
-                "mutator",
-            ]
-        }
-
-        # Save StateManager state
-        temp_path = Path(path).with_suffix(".temp")
-        state_dict = {
-            "sampler": sampler_state,
-            "state_manager": self.state.to_dict(),
-        }
-
-        Path(path).parent.mkdir(exist_ok=True)
-        with open(temp_path, "wb") as f:
-            dill.dump(file=f, obj=state_dict)
-            f.flush()
-            os.fsync(f.fileno())
-
-        os.rename(temp_path, path)
+        self._core.save_sampler_state(Path(path))
 
     def load_state(self, path: Union[str, Path]):
-        """Load state of sampler from file.
+        """
+        Load sampler state from file.
 
         Parameters
         ----------
-        path : ``Union[str, Path]``
-            Path from which to load state.
+        path : str or Path
+            Path to state file.
         """
-        with open(path, "rb") as f:
-            state_dict = dill.load(file=f)
+        self._core.load_sampler_state(Path(path))
 
-        # Handle both old and new format
-        if "sampler" in state_dict and "state_manager" in state_dict:
-            # New format
-            self.__dict__.update(
-                {k: v for k, v in state_dict["sampler"].items() if k not in ["state"]}
-            )
+    def __getstate__(self):
+        """Get state for pickling (for backward compatibility)."""
+        state = self.__dict__.copy()
+        # Remove pool-related attributes that can't be pickled
+        if "_core" in state and hasattr(state["_core"], "pool"):
+            del state["_core"]
+        return state
 
-            # Load StateManager state
-            self.state.update_from_dict(state_dict["state_manager"])
-        else:
-            # Old format (backward compatibility)
-            # Filter out old 'particles' key and non-picklable items
-            filtered_state = {
-                k: v
-                for k, v in state_dict.items()
-                if k not in ["particles", "pbar", "pool", "distribute"]
-            }
-            self.__dict__.update(filtered_state)
+    def results(self):
+        """Return results (backward compatibility)."""
+        return self.state.compute_results()
+
+    # Backward compatible property accessors
+    @property
+    def n_dim(self) -> int:
+        """Number of dimensions."""
+        return self._core.config.n_dim
+
+    @property
+    def n_effective(self) -> int:
+        """Number of effective particles."""
+        return self._core.config.n_effective
+
+    @property
+    def n_active(self) -> int:
+        """Number of active particles."""
+        return self._core.config.n_active
+
+    @property
+    def n_steps(self) -> int:
+        """Number of MCMC steps."""
+        return self._core.config.n_steps
+
+    @property
+    def n_max_steps(self) -> int:
+        """Maximum number of MCMC steps."""
+        return self._core.config.n_max_steps
+
+    @property
+    def n_boost(self) -> Optional[int]:
+        """Boost target for particle count."""
+        return self._core.config.n_boost
+
+    @property
+    def n_total(self) -> Optional[int]:
+        """Total effective samples target."""
+        return getattr(self._core, "n_total", None)
+
+    @property
+    def metric(self) -> str:
+        """Metric used (ess or uss)."""
+        return self._core.config.metric
+
+    @property
+    def resample(self) -> str:
+        """Resampling method (mult or syst)."""
+        return self._core.config.resample
+
+    @property
+    def clustering(self) -> bool:
+        """Whether clustering is enabled."""
+        return self._core.config.clustering
+
+    @property
+    def vectorize(self) -> bool:
+        """Whether likelihood is vectorized."""
+        return self._core.config.vectorize
+
+    @property
+    def output_dir(self) -> Path:
+        """Output directory for state files."""
+        return self._core.config.output_dir
+
+    @property
+    def output_label(self) -> str:
+        """Label for output files."""
+        return self._core.config.output_label
+
+    @property
+    def random_state(self) -> Optional[int]:
+        """Random seed."""
+        return self._core.config.random_state
+
+    @property
+    def periodic(self) -> Optional[list]:
+        """Periodic boundary condition indices."""
+        return self._core.config.periodic
+
+    @property
+    def reflective(self) -> Optional[list]:
+        """Reflective boundary condition indices."""
+        return self._core.config.reflective
+
+    @property
+    def beta(self) -> float:
+        """Current inverse temperature."""
+        return self.state.get_current("beta")
+
+    @property
+    def logz(self) -> float:
+        """Current log evidence estimate."""
+        return self.state.get_current("logz")
+
+    @property
+    def ess(self) -> float:
+        """Current effective sample size."""
+        return self.state.get_current("ess")
+
+    @property
+    def n_effective_init(self) -> int:
+        """Initial number of effective particles."""
+        return self._core.config.n_effective
