@@ -92,54 +92,6 @@ See the [Installation Guide](installation.md) for more details.
 
 ---
 
-## Documentation Contents
-
-<div class="grid cards" markdown>
-
--   :material-rocket-launch:{ .lg .middle } **Getting Started**
-
-    ---
-
-    Learn how to install Tempest and run your first sampling job
-
-    [:octicons-arrow-right-24: Quick Start](quickstart.md)
-
--   :material-book-open-variant:{ .lg .middle } **User Guide**
-
-    ---
-
-    Comprehensive guide covering all features and use cases
-
-    [:octicons-arrow-right-24: User Guide](user_guide/basic_usage.md)
-
--   :material-code-tags:{ .lg .middle } **API Reference**
-
-    ---
-
-    Complete Sampler API reference
-
-    [:octicons-arrow-right-24: API Reference](api/sampler.md)
-
--   :material-lightbulb:{ .lg .middle } **Examples**
-
-    ---
-
-    Practical examples and tutorials
-
-    [:octicons-arrow-right-24: Examples](examples/rosenbrock.md)
-
--   :material-history:{ .lg .middle } **Changelog**
-
-    ---
-
-    Detailed history of changes for each version
-
-    [:octicons-arrow-right-24: Changelog](https://github.com/minaskar/tempest/blob/main/CHANGELOG.md)
-
-</div>
-
----
-
 ## License
 
 Tempest is free software made available under the MIT License. For details see the [LICENCE](https://github.com/minaskar/tempest/blob/master/LICENCE) file.
