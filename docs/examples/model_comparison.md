@@ -44,6 +44,8 @@ Following Jeffreys (1961) and Kass & Raftery (1995):
 | 1 to 2 | Strong |
 | > 2 | Decisive |
 
+**Note:** These interpretation thresholds are heuristics to guide intuition, not strict decision rules. The appropriate threshold depends on context, prior model probabilities, and the consequences of model choice.
+
 A Bayes factor > 100 ($\log_{10}(BF) > 2$) indicates decisive evidence for $M_1$ over $M_2$.
 
 ## Problem: Linear vs Oscillatory Models
@@ -152,24 +154,25 @@ print(f"Oscillatory model: logZ = {logz_osc:.2f}")
 ## Computing Bayes Factors
 
 ```python
-# Compute Bayes factor: BF = exp(logZ_osc - logZ_lin)
+# Compute Bayes factor
 bayes_factor = np.exp(logz_osc - logz_lin)
 log10_bayes_factor = (logz_osc - logz_lin) / np.log(10)
 
 print(f"\nBayes Factor (Oscillatory/Linear) = {bayes_factor:.2e}")
 print(f"log₁₀(BF) = {log10_bayes_factor:.2f}")
+# Expected: 8.62e+37 and 37.94
 ```
 
 **Expected output:**
 ```
-Linear model: logZ = -123.45
-Oscillatory model: logZ = -45.67
+Linear model: logZ = -113.72
+Oscillatory model: logZ = -26.36
 
-Bayes Factor (Oscillatory/Linear) = 1.2e+34
-log₁₀(BF) = 33.8
+Bayes Factor (Oscillatory/Linear) = 8.62e+37
+log₁₀(BF) = 37.94
 ```
 
-**Interpretation:** A log₁₀(BF) ≈ 34 indicates **decisive evidence** favoring the oscillatory model.
+**Interpretation:** A log₁₀(BF) ≈ 38 indicates **decisive evidence** favoring the oscillatory model.
 
 ---
 
@@ -188,8 +191,13 @@ a_err, b_err, sigma_err_lin = stds_lin
 
 print(f"Linear parameters:")
 print(f"  a = {a_fit:.3f} ± {a_err:.3f}")
+# Expected: -0.396 and 0.331
+
 print(f"  b = {b_fit:.3f} ± {b_err:.3f}")
+# Expected: 0.518 and 0.574
+
 print(f"  σ = {sigma_fit_lin:.3f} ± {sigma_err_lin:.3f}")
+# Expected: 2.015 and 0.208
 
 # Oscillatory model parameters (weighted posterior mean)
 params_osc = np.average(samples_osc, weights=weights_osc, axis=0)
@@ -201,10 +209,19 @@ A_err, B_err, omega_err, phi_err, sigma_err_osc = stds_osc
 
 print(f"\nOscillatory parameters:")
 print(f"  A = {A_fit:.3f} ± {A_err:.3f}")
+# Expected: 0.443 and 0.058
+
 print(f"  B = {B_fit:.3f} ± {B_err:.3f}")
+# Expected: 2.106 and 0.099
+
 print(f"  ω = {omega_fit:.3f} ± {omega_err:.3f}")
+# Expected: 6.308 and 0.021
+
 print(f"  φ = {phi_fit:.3f} ± {phi_err:.3f}")
+# Expected: 0.728 and 0.042
+
 print(f"  σ = {sigma_fit_osc:.3f} ± {sigma_err_osc:.3f}")
+# Expected: 0.247 and 0.028
 
 # Generate predictions for visualization
 y_pred_lin = a_fit * x + b_fit
