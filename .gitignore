@@ -25,3 +25,4 @@ tests/__pycache__/
 .ruff_cache/
 AGENTS.md
 .opencode/site/
+site/
