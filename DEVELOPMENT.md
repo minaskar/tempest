@@ -53,7 +53,13 @@ Update `CHANGELOG.md` when:
    git tag v1.1.0
    git push origin v1.1.0
    ```
-5. Push to main branch to trigger release workflow in `.github/workflows/release_to_pypi.yml`
+5. Release manually to PyPI when ready:
+   ```bash
+   python -m pip install --upgrade build twine
+   python -m build
+   twine check --strict dist/*
+   twine upload dist/*
+   ```
 6. Create new `[Unreleased]` section for next version
 
 ### Version Links
@@ -129,11 +135,11 @@ When submitting a PR:
 ## Release Checklist
 
 Before creating a release:
-- [ ] Update version number in `tempest/_version.py`
+- [ ] Update version number in `tempest/version.py`
 - [ ] Update CHANGELOG.md with all changes
 - [ ] Ensure all tests pass
 - [ ] Update documentation if needed
 - [ ] Tag release with `git tag v{version}`
-- [ ] Push tag to trigger PyPI release
+- [ ] Build and upload to PyPI manually (see Release Process)
 - [ ] Verify release on PyPI
-- [ ] Update GitHub Release notes (manual step)
+- [ ] Create GitHub Release with release notes
