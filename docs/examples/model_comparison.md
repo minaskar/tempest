@@ -213,69 +213,56 @@ y_pred_osc = (A_fit * x + B_fit) * np.sin(omega_fit * x + phi_fit)
 
 ---
 
-## Visualization and Interpretation
+## Visualization
 
-Create a comprehensive 4-panel visualization:
+We'll create two complementary visualizations to understand the model fits:
+
+### 1. Posterior Predictive Distributions
+
+This plot shows how well each model predicts the data, including uncertainty (95% credible intervals):
 
 ```python
-fig = plt.figure(figsize=(14, 10))
+# Generate 200 posterior predictive samples from each model
+# by sampling parameters from the posterior and computing predictions
+predictions_lin = np.array([...])  # Linear model predictions
+predictions_osc = np.array([...])  # Oscillatory model predictions
 
-# Panel 1: Data and model predictions
-ax1 = plt.subplot(2, 2, (1, 2))
-ax1.scatter(x, y_obs, alpha=0.6, s=50, label="Data", color="black", zorder=3)
-ax1.plot(x, y_pred_osc, "r-", linewidth=2, 
-         label=f"Oscillatory (logZ={logz_osc:.1f})")
-ax1.plot(x, y_pred_lin, "b--", linewidth=2, 
-         label=f"Linear (logZ={logz_lin:.1f})")
-ax1.plot(x, y_true, "g-", alpha=0.7, linewidth=1, label="True model")
-ax1.set_xlabel("x", fontsize=12)
-ax1.set_ylabel("y", fontsize=12)
-ax1.legend(fontsize=10, loc="upper right")
-ax1.set_title("Model Comparison: Data and Fits", fontsize=14, fontweight="bold")
-ax1.grid(True, alpha=0.3)
+# Compute 2.5th, 50th, and 97.5th percentiles for 95% CI
+lin_q025, lin_q50, lin_q975 = np.percentile(predictions_lin, [2.5, 50, 97.5], axis=0)
+osc_q025, osc_q50, osc_q975 = np.percentile(predictions_osc, [2.5, 50, 97.5], axis=0)
 
-# Panel 2: Oscillatory model posteriors (corner plot)
-fig_corner = corner.corner(
-    samples_osc[:, :4],  # 4 physical parameters (exclude sigma)
-    labels=["A", "B", r"$\omega$", r"$\phi$"],
-    truths=[A_true, B_true, omega_true, phi_true],
-    show_titles=True,
-    title_fmt=".2f",
-    quantiles=[0.16, 0.5, 0.84],
-)
-
-# Panel 3: Model evidence comparison
-ax3 = plt.subplot(2, 2, 4)
-ax3.axis("off")
-interpretation = "Decisive" if log10_bayes_factor > 2 else \
-                "Strong" if log10_bayes_factor > 1 else \
-                "Substantial" if log10_bayes_factor > 0.5 else \
-                "Weak"
-ax3.text(0.5, 0.5, 
-         f"Evidence Comparison:\n\n"
-         f"Linear: logZ = {logz_lin:.2f}\n"
-         f"Oscillatory: logZ = {logz_osc:.2f}\n\n"
-         f"Bayes Factor = {bayes_factor:.1e}\n"
-         f"log₁₀(BF) = {log10_bayes_factor:.1f}\n\n"
-         f"Interpretation: {interpretation}\n"
-         f"evidence for oscillatory model",
-         transform=ax3.transAxes,
-         ha="center", va="center", fontsize=11,
-         bbox=dict(boxstyle="round,pad=0.5", facecolor="lightgray", alpha=0.5))
-
-plt.tight_layout()
-plt.savefig("model_comparison.png", dpi=150, bbox_inches="tight")
+# Plot with credible intervals
+plt.fill_between(x, lin_q025, lin_q975, alpha=0.3, color='blue', label='Linear 95% CI')
+plt.plot(x, lin_q50, 'b--', label='Linear median')
+plt.fill_between(x, osc_q025, osc_q975, alpha=0.3, color='red', label='Oscillatory 95% CI')
+plt.plot(x, osc_q50, 'r-', label='Oscillatory median')
 ```
 
-**Result:**
+![Posterior Predictive Distributions](../assets/examples/posterior_predictive.png)
 
-![Model Comparison Plot](../assets/examples/model_comparison.png)
+**Interpretation:**
+- The oscillatory model's credible interval (red) tightly envelopes the true model (green line), capturing both the oscillatory pattern and amplitude variation
+- The linear model's interval (blue) completely misses the data structure, showing it cannot explain the observations
+- Both models appropriately capture the observation noise level
+- The 95% credible intervals show the range of predictions consistent with each model's posterior parameter uncertainty
+
+### 2. Parameter Posterior Distributions
+
+Separate corner plots for each model's parameter constraints:
+
+**Linear Model (3 parameters):** Shows the posterior distribution of slope (a), intercept (b), and noise level (σ)
+
+![Linear Model Posteriors](../assets/examples/linear_corner.png)
+
+**Oscillatory Model (5 parameters):** Shows constraints on amplitude coefficients (A, B), frequency (ω), phase (φ), with green lines marking the true values used to generate the data
+
+![Oscillatory Model Posteriors](../assets/examples/oscillatory_corner.png)
 
 **Key observations:**
-
-1. **Data and Fits**: The oscillatory model (red line) captures the true structure, while the linear model (blue dashed) cannot explain the data pattern
-2. **Posteriors**: Corner plot shows all oscillatory parameters correctly recover the true values (green lines)
-3. **Evidence**: Large Bayes factor indicates decisive preference for the oscillatory model
+- The linear model parameters are poorly constrained because a straight line cannot fit oscillatory data
+- The oscillatory model parameters are well-constrained and centered near the true values (green lines)
+- The corner plots reveal correlations between parameters (e.g., A and B are anti-correlated)
+- Narrow posterior distributions indicate high confidence in the oscillatory model's parameter estimates
 
 ---
 
