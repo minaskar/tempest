@@ -6,7 +6,7 @@ site_url: https://tempest.readthedocs.io
 repo_name: minaskar/tempest
 repo_url: https://github.com/minaskar/tempest
 
-copyright: Copyright &copy; 2022-2026 Minas Karamanis and contributors
+copyright: Copyright &copy; 2026-Present Minas Karamanis and contributors
 
 theme:
   name: material
