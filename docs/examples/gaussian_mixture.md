@@ -105,8 +105,13 @@ ax.set_ylabel('$x_1$')
 ax.set_title('Gaussian Mixture Posterior Samples')
 ax.set_aspect('equal')
 plt.savefig('gaussian_mixture.png', dpi=150)
-plt.show()
 ```
+
+**Result**
+
+![Gaussian mixture scatter plot showing samples colored by mode assignment with true mode locations marked](../assets/examples/gaussian_mixture.png)
+
+The scatter plot shows the recovered posterior samples with the true mode locations marked as red crosses.
 
 ---
 

@@ -114,6 +114,12 @@ fig = corner.corner(
 plt.savefig("rosenbrock_corner.png")
 ```
 
+**Result**
+
+![Rosenbrock corner plot showing the first 4 parameters with true values marked](../assets/examples/rosenbrock_corner.png)
+
+The corner plot shows the marginalized distributions for the first 4 dimensions. The vertical lines mark the true parameter values at $x_i = 1.0$.
+
 ---
 
 ## High-Dimensional Challenge
