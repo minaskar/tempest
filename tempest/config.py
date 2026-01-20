@@ -206,7 +206,7 @@ class SamplerConfig:
 # Algorithm constants (centralized to avoid inconsistency)
 BETA_TOLERANCE: float = 1e-4
 ESS_TOLERANCE: float = 0.01
-DOF_FALLBACK: float = 1.0
+DOF_FALLBACK: float = 1e6
 TRIM_ESS: float = 0.99
 TRIM_BINS: int = 1000
 BOOST_STEEPNESS: float = 0.125

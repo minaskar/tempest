@@ -54,7 +54,7 @@ class ModeStatistics:
     >>> mode_stats = ModeStatistics.from_global(u, weights)
     """
 
-    DOF_FALLBACK = 1.0
+    DOF_FALLBACK = 1e6
 
     def __init__(
         self,
