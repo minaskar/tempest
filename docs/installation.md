@@ -56,14 +56,16 @@ The `-e` flag installs the package in "editable" mode, which is useful for devel
 
 ### MPI Support
 
-For running Tempest with MPI parallelization (useful for HPC clusters), install `mpi4py`:
+For running Tempest with MPI parallelization (useful for HPC clusters), we recommend installing `ezmpi`:
 
 ```bash
-pip install mpi4py
+pip install ezmpi
 ```
 
-!!! note "MPI Installation"
-    Make sure you have an MPI implementation installed on your system (e.g., OpenMPI, MPICH) before installing mpi4py.
+This will automatically install `mpi4py` and provide the `MPIPool` class used by Tempest for MPI parallelization.
+
+!!! note "MPI Runtime"
+    Make sure you have an MPI implementation installed on your system (e.g., OpenMPI, MPICH) before installing ezmpi.
 
 ### Development Dependencies
 
@@ -101,16 +103,6 @@ pytest tests/
 ---
 
 ## Troubleshooting
-
-### PyTorch Issues
-
-If you encounter issues with PyTorch, try installing it separately first:
-
-```bash
-pip install torch
-```
-
-For GPU support, follow the [PyTorch installation guide](https://pytorch.org/get-started/locally/).
 
 ### Permission Errors
 
