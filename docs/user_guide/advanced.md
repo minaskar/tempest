@@ -57,27 +57,19 @@ Iter: 50 [beta=0.85, K=3, ESS=512, ...]
 
 ## Step-by-Step Sampling
 
-For fine-grained control, use the `sample()` method instead of `run()`:
+For fine-grained control with checkpointing:
 
 ```python
 sampler = tp.Sampler(prior=prior, likelihood=log_likelihood)
 
-# Custom sampling loop
-while sampler.state.get_current("beta") < 1.0:
-    state = sampler.sample()
-    
-    # Access current state
-    print(f"Iteration {state['iter']}")
-    print(f"Beta: {state['beta']:.4f}")
-    print(f"ESS: {state['ess']:.1f}")
-    print(f"Log-evidence: {state['logz']:.2f}")
-    
-    # Custom stopping criteria
-    if state['ess'] > 10000:
-        break
-    
-    # Custom actions between iterations
-    save_intermediate_results(state)
+# Run with save_every to create checkpoints
+sampler.run(n_total=1000, save_every=10)
+
+# Process results in batches
+for i in range(0, sampler.results['niter'], 10):
+    samples, weights, logl = sampler.posterior()
+    # Analyze intermediate results
+    save_intermediate_results(samples, weights, logl)
 ```
 
 ---
@@ -203,24 +195,6 @@ Tempest works in the unit hypercube. Parameters outside [0, 1] after transformat
 
 ## Results Analysis
 
-### Full Results Object
-
-```python
-results = sampler.results
-
-# Iteration-wise data
-beta_history = results['beta']
-ess_history = results['ess']
-acceptance_history = results['accept']
-efficiency_history = results['efficiency']
-logz_history = results['logz']
-
-# Sample data
-all_samples = results['x']  # Shape: (n_iter, n_active, n_dim)
-all_logl = results['logl']
-log_weights = results['logw']
-```
-
 ### Computing Weighted Statistics
 
 ```python
@@ -234,9 +208,7 @@ centered = samples - mean
 cov = np.average(centered[:, :, np.newaxis] * centered[:, np.newaxis, :], 
                  weights=weights, axis=0)
 
-# Weighted quantiles
-from scipy.stats import median_abs_deviation
-# Note: for weighted quantiles, use specialized functions
+# Weighted quantiles - use specialized functions for weighted data
 ```
 
 ---

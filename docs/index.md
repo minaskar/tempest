@@ -16,7 +16,7 @@ Tempest is a Python package for fast Bayesian posterior and model evidence estim
 
 - **Fast Posterior Sampling**: Accelerated Bayesian inference using persistent proposals
 - **Evidence Estimation**: Reliable estimation of the Bayesian model evidence (marginal likelihood)
-- **Multimodal Support**: Effective handling of multimodal distributions with hierarchical clustering
+- **Multimodal Support**: Effective handling of multimodal distributions with automatic clustering
 - **Parallelization**: Support for multiprocessing and MPI for large-scale problems
 - **Flexible Priors**: Easy-to-use prior distribution specification
 - **Robust MCMC**: Uses t-preconditioned Crank-Nicolson for efficient parameter space exploration
@@ -116,7 +116,7 @@ See the [Installation Guide](installation.md) for more details.
 
     ---
 
-    Complete API documentation for all modules
+    Complete Sampler API reference
 
     [:octicons-arrow-right-24: API Reference](api/sampler.md)
 

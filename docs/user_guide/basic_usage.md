@@ -107,11 +107,8 @@ print(f"log(Z) = {logz:.2f} ± {logz_err:.2f}")
 ```python
 results = sampler.results
 
-# Access different quantities
-u_samples = results['u']      # Samples in unit hypercube
-x_samples = results['x']      # Samples in physical space
-log_likelihoods = results['logl']
-log_weights = results['logw']
+# The results dictionary contains iteration history and samples
+# Access samples and statistics as needed for analysis
 ```
 
 ---
@@ -136,7 +133,7 @@ sampler = tp.Sampler(
 sampler.run()
 
 # Access blobs
-samples, weights, logl, blobs = sampler.posterior(return_blobs=True)
+samples, weights, logl, blobs = sampler.posterior()
 chi2_values = blobs  # Your stored quantities
 ```
 
