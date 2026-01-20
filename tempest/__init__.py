@@ -17,8 +17,8 @@ __license__ = "MIT"
 __description__ = "A Python implementation of Persistent Sampling for accelerated Bayesian Computation"
 
 
-from .sampler import *
-from .modes import ModeStatistics
-from ._version import version
+from .sampler import Sampler
+from .version import version
 
 __version__ = version
+__all__ = ["Sampler"]

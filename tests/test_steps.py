@@ -4,7 +4,7 @@ from unittest.mock import Mock, MagicMock, patch
 
 from scipy.stats import norm
 
-from tempest._steps import Reweighter, Trainer, Resampler, Mutator
+from tempest.steps import Reweighter, Trainer, Resampler, Mutator
 from tempest.state_manager import StateManager
 from tempest.cluster import HierarchicalGaussianMixture
 from tempest.modes import ModeStatistics
@@ -531,7 +531,7 @@ class MutatorTestCase(unittest.TestCase):
         logz = self.state.get_current("logz")
         self.assertLess(logz, 0.0)  # Corrected for <100% finite support
 
-    @patch("tempest._steps.mutate.parallel_mcmc")
+    @patch("tempest.steps.mutate.parallel_mcmc")
     def test_mcmc_evolution(self, mock_parallel_mcmc):
         """Test Mutator calls parallel_mcmc at beta>0."""
         n_active = 8

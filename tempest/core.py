@@ -31,10 +31,10 @@ class SamplerCore:
         self.state = state
 
         # Initialize components (moved from Sampler._initialize_steps)
-        from ._steps.reweight import Reweighter
-        from ._steps.train import Trainer
-        from ._steps.resample import Resampler
-        from ._steps.mutate import Mutator
+        from .steps.reweight import Reweighter
+        from .steps.train import Trainer
+        from .steps.resample import Resampler
+        from .steps.mutate import Mutator
 
         self.reweighter = Reweighter(
             state=self.state,

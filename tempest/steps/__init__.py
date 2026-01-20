@@ -5,9 +5,9 @@ Persistent Sampling algorithm. These classes are internal implementation
 details and not part of the public API.
 """
 
-from tempest._steps.reweight import Reweighter
-from tempest._steps.train import Trainer
-from tempest._steps.resample import Resampler
-from tempest._steps.mutate import Mutator
+from tempest.steps.reweight import Reweighter
+from tempest.steps.train import Trainer
+from tempest.steps.resample import Resampler
+from tempest.steps.mutate import Mutator
 
 __all__ = ["Reweighter", "Trainer", "Resampler", "Mutator"]

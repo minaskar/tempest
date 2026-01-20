@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from .modes import ModeStatistics
 
 
-class _BaseMCMCRunner(ABC):
+class BaseMCMCRunner(ABC):
     """Base class for MCMC runners with common infrastructure."""
 
     def __init__(
@@ -188,7 +188,7 @@ class _BaseMCMCRunner(ABC):
         )
 
 
-class _TPCNRunner(_BaseMCMCRunner):
+class TPCNRunner(BaseMCMCRunner):
     """t-preconditioned Crank-Nicolson MCMC runner."""
 
     def __init__(self, *args, **kwargs):
@@ -268,7 +268,7 @@ class _TPCNRunner(_BaseMCMCRunner):
         )
 
 
-class _RWMRunner(_BaseMCMCRunner):
+class RWMRunner(BaseMCMCRunner):
     """Random Walk Metropolis MCMC runner."""
 
     def __init__(self, *args, **kwargs):
@@ -549,7 +549,7 @@ def parallel_t_preconditioned_crank_nicolson(
     Tuple containing updated u, x, logl, blobs, average efficiency, average acceptance rate,
     number of iterations, and number of likelihood calls.
     """
-    runner = _TPCNRunner(
+    runner = TPCNRunner(
         u,
         x,
         logl,
@@ -636,7 +636,7 @@ def parallel_random_walk_metropolis(
     Tuple containing updated u, x, logl, blobs, average efficiency, average acceptance rate,
     number of iterations, and number of likelihood calls.
     """
-    runner = _RWMRunner(
+    runner = RWMRunner(
         u,
         x,
         logl,

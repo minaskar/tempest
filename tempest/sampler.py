@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Union, Optional, List
 
 from .config import SamplerConfig
-from ._core import SamplerCore
+from .core import SamplerCore
 from .state_manager import StateManager
 from .tools import FunctionWrapper
 
