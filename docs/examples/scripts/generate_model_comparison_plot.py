@@ -82,7 +82,7 @@ sampler_linear = tp.Sampler(
     random_state=42,
 )
 
-sampler_linear.run(n_total=4096, progress=True)
+sampler_linear.run(n_total=4096, progress=False)
 samples_lin, weights_lin, _ = sampler_linear.posterior()
 logz_lin, _ = sampler_linear.evidence()
 
@@ -98,7 +98,7 @@ sampler_osc = tp.Sampler(
     random_state=42,
 )
 
-sampler_osc.run(n_total=4096, progress=True)
+sampler_osc.run(n_total=4096, progress=False)
 samples_osc, weights_osc, _ = sampler_osc.posterior()
 logz_osc, _ = sampler_osc.evidence()
 

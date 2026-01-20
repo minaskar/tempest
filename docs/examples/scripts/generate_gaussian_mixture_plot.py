@@ -67,7 +67,7 @@ sampler = tp.Sampler(
     random_state=42,
 )
 
-sampler.run(n_total=4096, progress=True)
+sampler.run(n_total=4096, progress=False)
 samples, weights_post, _ = sampler.posterior()
 
 print(f"Generated {len(samples)} samples")

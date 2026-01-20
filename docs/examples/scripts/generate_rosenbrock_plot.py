@@ -49,7 +49,7 @@ sampler = tp.Sampler(
     random_state=42,
 )
 
-sampler.run(n_total=4096, progress=True)  # Reduced from 8192 for speed
+sampler.run(n_total=4096, progress=False)  # Reduced from 8192 for speed
 samples, weights, logl = sampler.posterior()
 
 print(f"Generated {len(samples)} samples")

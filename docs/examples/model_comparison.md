@@ -82,34 +82,30 @@ sigma_true = 0.25
 y_true = (A_true * x + B_true) * np.sin(omega_true * x + phi_true)
 y_obs = y_true + np.random.normal(0, sigma_true, size=len(x))
 
-# Model 1: Linear Regression (3 parameters)
-def log_likelihood_linear(theta):
-    a, b, sigma = theta
-    y_pred = a * x + b
-    return -0.5 * np.sum(((y_obs - y_pred) / sigma) ** 2 + 
-                         np.log(2 * np.pi * sigma**2))
-
-def prior_transform_linear(u):
-    a = 10 * u[0] - 5      # U(-5, 5)
-    b = 20 * u[1] - 10     # U(-10, 10)
-    sigma = 10**(3 * u[2] - 2)  # Log-uniform [0.01, 10]
-    return np.array([a, b, sigma])
-
-# Model 2: Oscillatory Model (5 parameters)
-def log_likelihood_oscillatory(theta):
-    A, B, omega, phi, sigma = theta
-    y_pred = (A * x + B) * np.sin(omega * x + phi)
-    return -0.5 * np.sum(((y_obs - y_pred) / sigma) ** 2 + 
-                         np.log(2 * np.pi * sigma**2))
-
-def prior_transform_oscillatory(u):
-    A = u[0]                # U(0, 1)
-    B = 5 * u[1]            # U(0, 5)
-    omega = 8 * np.pi * u[2]  # U(0, 8π)
-    phi = 2 * np.pi * u[3]    # U(0, 2π)
-    sigma = 10**(3 * u[4] - 2)  # Log-uniform [0.01, 10]
-    return np.array([A, B, omega, phi, sigma])
+print(f"Generated {n_data} data points with {sigma_true:.1%} noise")
+print(f"True model: y = (A*x + B) * sin(ω*x + φ)")
+print(f"  A={A_true}, B={B_true}, ω={omega_true:.2f}, φ={phi_true:.2f}")
 ```
+
+## Visualizing the Synthetic Data
+
+Let's create a separate plot to visualize the data generation process:
+
+```python
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(x, y_true, 'g-', linewidth=2, label='True model')
+ax.scatter(x, y_obs, alpha=0.6, s=50, color='black', label='Synthetic data')
+ax.set_xlabel("x")
+ax.set_ylabel("y")
+ax.set_title("Synthetic Data Generation")
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.savefig("data_generation.png", dpi=150)
+```
+
+![Data Generation](../assets/examples/data_generation.png)
 
 ---
 
@@ -131,6 +127,7 @@ samples_lin, weights_lin, _ = sampler_linear.posterior()
 logz_lin, _ = sampler_linear.evidence()
 
 print(f"Linear model: logZ = {logz_lin:.2f}")
+# Expected: -113.72
 
 # Model 2: Oscillatory
 sampler_osc = tp.Sampler(
@@ -147,6 +144,7 @@ samples_osc, weights_osc, _ = sampler_osc.posterior()
 logz_osc, _ = sampler_osc.evidence()
 
 print(f"Oscillatory model: logZ = {logz_osc:.2f}")
+# Expected: -26.36
 ```
 
 ---
@@ -307,33 +305,6 @@ More complex models are only favored if they sufficiently improve the fit.
 
 ---
 
-## Advanced Topics
-
-### Nested Models
-
-For nested models (e.g., linear model inside polynomial model), the Bayes factor has special properties. Consider model $M_0: y = ax + b$ vs. $M_1: y = ax + b + cx^2$.
-
-```python
-# Savage-Dickey density ratio for nested models
-# More efficient than direct comparison for some cases
-```
-
-### Multimodal Model Comparison
-
-For models with multiple modes, ensure:
-- Adequate `n_effective` and `n_active` particles
-- Enable clustering: `clustering=True`
-- Multiple MCMC chains: `mcmc_steps > 0`
-
-### Computational Considerations
-
-- Run models with **same computational budget** (similar `n_total`)
-- Convergence diagnostics: Check evidence stability across runs
-- Error estimation: Tempest provides `logz_err` but it may be optimistic
-- For critical decisions: Run multiple chains with different random seeds
-
----
-
 ## Best Practices
 
 1. **Always compute parameter uncertainties** alongside Bayes factors
@@ -341,7 +312,6 @@ For models with multiple modes, ensure:
 3. **Consider multiple models**, not just binary comparisons
 4. **Report both logZ and log₁₀(BF)** for clarity
 5. **Be explicit about prior choices** and their impact
-6. **Use progress=False** when scripting to avoid output overhead
 
 ---
 

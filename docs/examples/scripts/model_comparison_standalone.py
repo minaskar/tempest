@@ -13,6 +13,7 @@ the oscillatory model to be strongly favored despite having more parameters.
 """
 
 import numpy as np
+import os
 import tempest as tp
 import matplotlib.pyplot as plt
 import corner
@@ -38,6 +39,29 @@ y_obs = y_true + np.random.normal(0, sigma_true, size=len(x))
 print(f"\nGenerated {n_data} data points with {sigma_true:.1%} noise")
 print(f"True model: y = (A*x + B) * sin(ω*x + φ)")
 print(f"  A={A_true}, B={B_true}, ω={omega_true:.2f}, φ={phi_true:.2f}")
+
+# ============================================================================
+# Visualize data generation
+# ============================================================================
+print("\n" + "=" * 60)
+print("Creating data generation visualization...")
+print("=" * 60)
+
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(x, y_true, "g-", linewidth=2, label="True model")
+ax.scatter(x, y_obs, alpha=0.6, s=50, color="black", label="Synthetic data")
+ax.set_xlabel("x")
+ax.set_ylabel("y")
+ax.set_title("Synthetic Data Generation")
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+output_dir = os.path.join(os.path.dirname(__file__), "..", "assets", "examples")
+os.makedirs(output_dir, exist_ok=True)
+output_path = os.path.join(output_dir, "data_generation.png")
+plt.savefig(output_path, dpi=150, bbox_inches="tight")
+plt.close()
+print(f"Saved: {output_path}\n")
 
 # ============================================================================
 # Model 1: Linear Regression (3 parameters)
