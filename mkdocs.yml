@@ -96,6 +96,7 @@ nav:
   - Examples:
     - Rosenbrock Distribution: examples/rosenbrock.md
     - Gaussian Mixture: examples/gaussian_mixture.md
+    - Bayesian Model Comparison: examples/model_comparison.md
   - API Reference:
     - Sampler: api/sampler.md
   - Citation: citation.md
