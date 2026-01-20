@@ -1,5 +1,3 @@
-![logo](logo.png)
-
 **Tempest is a Python implementation of the Persistent Sampling method for accelerated Bayesian inference**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/minaskar/tempest/blob/master/LICENCE)
