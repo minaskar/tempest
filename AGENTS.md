@@ -38,7 +38,7 @@ pytest tests/
 pytest tests/test_sampler.py::SamplerTestCase::test_run
 ```
 
-Available test files: `test_sampler.py`, `test_tools.py`, `test_mcmc.py`, `test_cluster.py`, `test_modes.py`, `test_steps.py`, `test_state_manager.py`, `test_state.py`, `test_student.py`, `test_edge_cases.py`, `test_sampler_features.py`, `test_sample_method.py`
+Available test files: `test_cluster.py`, `test_config.py`, `test_edge_cases.py`, `test_end_to_end.py`, `test_mcmc.py`, `test_modes.py`, `test_sample_method.py`, `test_sampler_features.py`, `test_sampler.py`, `test_state_manager.py`, `test_state.py`
 
 ### Linting
 ```bash
@@ -149,11 +149,13 @@ Use `multiprocess.Pool` for parallelization. The sampler accepts `pool` paramete
 
 ### Important Patterns
 - The main class is `Sampler` in `tempest/sampler.py`
-- Core algorithm steps in `tempest/_steps/`: `Reweighter`, `Trainer`, `Resampler`, `Mutator`
+- Core algorithm steps in `tempest/steps/`: `Reweighter`, `Trainer`, `Resampler`, `Mutator`
 - State persistence via `StateManager` class in `tempest/state_manager.py` (uses `dill`)
 - Clustering via `GaussianMixture` and `HierarchicalGaussianMixture` in `tempest/cluster.py`
 - Mode analysis via `ModeStatistics` in `tempest/modes.py`
-- MCMC runners (`_TPCNRunner`, `_RWMRunner`) in `tempest/mcmc.py`
+- MCMC runners (`TPCNRunner`, `RWMRunner`) in `tempest/mcmc.py`
+- Configuration via `SamplerConfig` in `tempest/config.py`
+- Core sampling logic in `SamplerCore` in `tempest/core.py`
 
 ### Dependencies
 Core dependencies: `numpy`, `scipy`, `tqdm`, `dill`, `multiprocess`. All defined in `pyproject.toml` and `requirements.txt`.

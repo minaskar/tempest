@@ -8,8 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Initial release of the Tempest package
 
-**StateManager API Improvements (Phases 1-7):**
+## [0.1.0] - 2026-01-20
+
+### Added
+
+**StateManager API:**
 - `get_last_history(key, default=None)` - retrieves most recent historical value with optional default
 - `get_history_length()` - returns number of iterations in history
 - `to_dict()` - exports state to dictionary for serialization
@@ -21,6 +26,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive usage examples in StateManager class docstring covering all new features
 - Migration guide document (`.opencode/StateManager-Migration-Guide.md`) with patterns and best practices
 - 41 new tests across 7 test classes for new StateManager functionality (100% passing)
+
+**Core Algorithm:**
+- Persistent Sampling (PS) algorithm implementation for accelerated Bayesian inference
+- Hierarchical Gaussian mixture clustering for multimodal distributions
+- MCMC proposal mechanisms with periodic and reflective boundary conditions
+- Multiprocessing and MPI parallelization support
+- Vectorized likelihood calculations for improved performance
+- State saving and loading functionality
+- Weighted posterior sample generation with trimming options
+- Bayesian model evidence (logZ) estimation with uncertainty
+- Multivariate Student's t-distribution fitting for heavy-tailed posteriors
+- Normalizing flow training for adaptive proposals
+- Dynamic ESS threshold adjustment
+- Effective and unique sample size metrics
+- Blobs support for storing additional likelihood data
 
 ### Changed
 
@@ -39,32 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored `StateManager.load_state()` to use `update_from_dict()` internally
 - Eliminated manual dictionary construction/unpacking in favor of clean API methods
 
-### Notes
-- All changes are **fully backward compatible** - existing code continues to work
-- Zero encapsulation violations (verified: no direct `_history` or `_current` access)
-- Test coverage: 116 total tests (100 original + 16 new), all passing
-- Performance improvements with no regressions
-- See migration guide for recommended patterns and upgrading existing code
-
-## [0.9.0] - 2026-01-11
-
-### Added
-- Initial release of Tempest
-- Persistent Sampling (PS) algorithm implementation for accelerated Bayesian inference
-- Hierarchical Gaussian mixture clustering for multimodal distributions
-- MCMC proposal mechanisms with periodic and reflective boundary conditions
-- Multiprocessing and MPI parallelization support
-- Vectorized likelihood calculations for improved performance
-- State saving and loading functionality
-- Weighted posterior sample generation with trimming options
-- Bayesian model evidence (logZ) estimation with uncertainty
-- Multivariate Student's t-distribution fitting for heavy-tailed posteriors
-- Normalizing flow training for adaptive proposals
-- Dynamic ESS threshold adjustment
-- Effective and unique sample size metrics
-- Blobs support for storing additional likelihood data
-
-### Changed
+**Packaging:**
 - Migrated from setup.py/setup.cfg to pyproject.toml for modern packaging
 - Removed torch from requirements (Python-only implementation)
 - Changed license from GPL-3.0 to MIT
@@ -85,5 +80,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Edge case and state management tests
 - CI/CD pipeline with Python 3.8-3.11 testing
 
-[Unreleased]: https://github.com/minaskar/tempest/compare/v0.9.0...HEAD
-[0.9.0]: https://github.com/minaskar/tempest/releases/tag/v0.9.0
+### Notes
+- All changes are **fully backward compatible** - existing code continues to work
+- Zero encapsulation violations (verified: no direct `_history` or `_current` access)
+- Test coverage: 116 total tests (100 original + 16 new), all passing
+- Performance improvements with no regressions
+- See migration guide for recommended patterns and upgrading existing code
+
+[Unreleased]: https://github.com/minaskar/tempest/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/minaskar/tempest/releases/tag/v0.1.0
