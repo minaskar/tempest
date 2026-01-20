@@ -3,7 +3,7 @@
 **Tempest is a Python implementation of the Persistent Sampling method for accelerated Bayesian inference**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/minaskar/tempest/blob/master/LICENCE)
-[![Documentation Status](https://readthedocs.org/projects/tempest/badge/?version=latest)](https://tempest.readthedocs.io/en/latest/?badge=latest)
+[![Documentation Status](https://readthedocs.org/projects/tempest-sampler/badge/?version=latest)](https://tempest-sampler.readthedocs.io/en/latest/?badge=latest)
 
 
 # Getting started
@@ -19,7 +19,7 @@ in cosmology and astronomy, ``Tempest`` is user-friendly, flexible, and actively
 
 ## Documentation
 
-Read the docs at [tempest.readthedocs.io](https://tempest.readthedocs.io) for more information, examples and tutorials. For a detailed list of changes, see the [CHANGELOG.md](https://github.com/minaskar/tempest/blob/main/CHANGELOG.md).
+Read the docs at [tempest-sampler.readthedocs.io](https://tempest-sampler.readthedocs.io) for more information, examples and tutorials. For a detailed list of changes, see the [CHANGELOG.md](https://github.com/minaskar/tempest/blob/main/CHANGELOG.md).
 
 ## Installation
 

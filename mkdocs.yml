@@ -1,7 +1,7 @@
 site_name: Tempest Documentation
 site_description: A Python implementation of Persistent Sampling for accelerated Bayesian inference
 site_author: Minas Karamanis
-site_url: https://tempest.readthedocs.io
+site_url: https://tempest-sampler.readthedocs.io
 
 repo_name: minaskar/tempest
 repo_url: https://github.com/minaskar/tempest
