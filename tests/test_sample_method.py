@@ -477,9 +477,9 @@ class SampleMethodTestCase(unittest.TestCase):
         particles_before = sampler.state.get_history("x", flat=True).copy()
 
         # Run several iterations
-        state = sampler.sample()
-        state = sampler.sample()
-        state = sampler.sample()
+        state = sampler.sample()  # noqa: F841
+        state = sampler.sample()  # noqa: F841
+        state = sampler.sample()  # noqa: F841
 
         # Get particles after iterations
         particles_after = sampler.state.get_history("x", flat=True)

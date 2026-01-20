@@ -346,8 +346,8 @@ class SamplerCore:
         # Check if results have blobs by testing the first result
         if results and isinstance(results[0], (tuple, list)) and len(results[0]) > 1:
             # Results have blobs
-            blob = [l[1:] for l in results]
-            logl = np.array([float(l[0]) for l in results])
+            blob = [item[1:] for item in results]
+            logl = np.array([float(item[0]) for item in results])
 
             # Get the blobs dtype
             if self.config.blobs_dtype is not None:
@@ -372,7 +372,7 @@ class SamplerCore:
             return logl, blob
         else:
             # No blobs - single values
-            logl = np.array([float(l) for l in results])
+            logl = np.array([float(value) for value in results])
             return logl, None
 
     def _not_termination(self):

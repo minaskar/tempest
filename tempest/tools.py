@@ -1,7 +1,6 @@
 import numpy as np
 import math
 from tqdm import tqdm
-import warnings
 from typing import Tuple, Optional, Dict, Any, Callable, List
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))

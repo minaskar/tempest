@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from scipy.stats import norm, multivariate_normal
+from scipy.stats import norm
 from tempest.sampler import Sampler
 
 
@@ -132,7 +132,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
         """Test that n_boost < n_effective raises an error."""
         n_dim = 2
         with self.assertRaises(ValueError):
-            sampler = Sampler(
+            _ = Sampler(
                 prior_transform=self.prior_transform_gaussian,
                 log_likelihood=self.log_likelihood_gaussian,
                 n_dim=n_dim,

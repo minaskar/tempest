@@ -1,7 +1,6 @@
 """Mode statistics for t-preconditioned Crank-Nicolson MCMC."""
 
 import numpy as np
-from typing import Union, Optional
 from tempest.student import fit_mvstud
 
 

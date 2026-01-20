@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 from dataclasses import dataclass
 from typing import Optional, Union, List, Callable, Any
 from pathlib import Path
@@ -171,8 +172,6 @@ class SamplerConfig:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary for serialization."""
-        import numpy as np
-
         return {
             "prior_transform": self.prior_transform,
             "log_likelihood": self.log_likelihood,

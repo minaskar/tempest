@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Union, Optional, List
+from typing import Union, Optional
 
 from .config import SamplerConfig
 from .core import SamplerCore

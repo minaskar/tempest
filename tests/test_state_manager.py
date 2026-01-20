@@ -6,7 +6,6 @@ from tempest.state_manager import (
     StateManager,
     CURRENT_STATE_KEYS,
     HISTORY_STATE_KEYS,
-    REQUIRED_COMMIT_KEYS,
 )
 
 

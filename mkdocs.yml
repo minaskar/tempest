@@ -100,7 +100,6 @@ nav:
     - Gaussian Mixture: examples/gaussian_mixture.md
   - API Reference:
     - Sampler: api/sampler.md
-    - Particles: api/particles.md
     - Parallel: api/parallel.md
     - Tools: api/tools.md
     - Clustering: api/cluster.md
