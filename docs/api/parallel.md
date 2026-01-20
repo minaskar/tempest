@@ -1,40 +1,22 @@
-# Parallel (MPI)
+# Parallel (MPI) - ezmpi Integration
 
-The `parallel` module provides MPI-based parallelization through the `MPIPool` class.
+Tempest integrates with [ezmpi](https://github.com/minaskar/ezmpi) for MPI-based parallelization.
 
 ## Overview
 
-`MPIPool` allows distributing likelihood evaluations across multiple processes using MPI (Message Passing Interface). This is essential for:
+[ezmpi](https://github.com/minaskar/ezmpi) is a simple MPI-based processing pool that distributes tasks across multiple processes using MPI (Message Passing Interface). It provides the same interface as Tempest's former `MPIPool` with additional improvements and maintenance.
 
+Use it for:
 - High-performance computing (HPC) clusters
 - Large-scale distributed computing
 - Multi-node parallelization
 
----
+## Installation
 
-## Class Reference
-
-::: tempest.parallel.MPIPool
-    options:
-      members:
-        - __init__
-        - map
-        - wait
-        - close
-        - is_master
-        - is_worker
-      show_root_heading: true
-      show_source: true
-      heading_level: 3
-
----
-
-## Requirements
-
-Install `mpi4py`:
+Install ezmpi separately:
 
 ```bash
-pip install mpi4py
+pip install ezmpi
 ```
 
 You also need an MPI implementation installed on your system:
@@ -42,14 +24,13 @@ You also need an MPI implementation installed on your system:
 - MPICH
 - Intel MPI
 
----
+## Usage
 
-## Basic Usage
+Use ezmpi's `MPIPool` class with Tempest:
 
 ```python
-import numpy as np
 import tempest as tp
-from tempest import MPIPool
+from ezmpi import MPIPool
 
 def log_likelihood(x):
     """Expensive likelihood calculation."""
@@ -79,8 +60,6 @@ if pool.is_master():
 pool.close()
 ```
 
----
-
 ## Running MPI Scripts
 
 Save your script and run with `mpiexec`:
@@ -105,127 +84,14 @@ module load mpi4py
 mpiexec -n 64 python my_sampling_script.py
 ```
 
----
+## API Reference
 
-## Master-Worker Pattern
+The ezmpi package provides the `MPIPool` class with the following key methods:
 
-MPIPool uses a master-worker pattern:
+- `__init__(comm=None, use_dill=True)`: Initialize pool
+- `map(worker, tasks)`: Execute worker function on each task
+- `close()`: Shutdown worker processes
+- `is_master()`: Check if current process is master (rank 0)
+- `is_worker()`: Check if current process is worker (rank > 0)
 
-- **Master** (rank 0): Runs the sampler, distributes tasks
-- **Workers** (rank > 0): Receive tasks, compute likelihoods, return results
-
-```python
-pool = MPIPool()
-
-if pool.is_master():
-    # Only the master runs the sampler
-    sampler = tp.Sampler(
-        prior_transform=prior_transform,
-        log_likelihood=log_likelihood,
-        n_dim=n_dim,
-        pool=pool,
-    )
-    sampler.run()
-    # Only the master has results
-    samples = sampler.posterior()[0]
-else:
-    # Workers automatically wait for tasks
-    pass
-
-pool.close()
-```
-
----
-
-## Configuration
-
-### Using dill for Pickling
-
-By default, `MPIPool` uses `dill` for serialization, which can pickle more complex objects:
-
-```python
-pool = MPIPool(use_dill=True)  # Default
-```
-
-Disable if you have issues with specific objects:
-
-```python
-pool = MPIPool(use_dill=False)
-```
-
-### Custom Communicator
-
-For advanced MPI usage, provide a custom communicator:
-
-```python
-from mpi4py import MPI
-
-comm = MPI.COMM_WORLD.Split(color, key)
-pool = MPIPool(comm=comm)
-```
-
----
-
-## Best Practices
-
-### Load Balancing
-
-Set `n_active` as a multiple of the number of workers:
-
-```python
-n_workers = pool.size  # Number of worker processes
-n_active = 32 * n_workers
-
-sampler = tp.Sampler(
-    prior_transform=prior_transform,
-    log_likelihood=log_likelihood,
-    n_dim=n_dim,
-    pool=pool,
-    n_active=n_active,
-)
-```
-
-### Resource Sizing
-
-- Use 1 master + N workers = N+1 total MPI ranks
-- Each worker gets one likelihood evaluation at a time
-- For very fast likelihoods, multiprocessing may be faster
-
-### Error Handling
-
-Wrap your code to handle MPI errors gracefully:
-
-```python
-try:
-    pool = MPIPool()
-    if pool.is_master():
-        sampler = tp.Sampler(
-            prior_transform=prior_transform,
-            log_likelihood=log_likelihood,
-            n_dim=n_dim,
-            pool=pool,
-        )
-        sampler.run()
-finally:
-    pool.close()
-```
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-| Issue | Solution |
-| --- | --- |
-| "Tried to create MPI pool with only one process" | Use `mpiexec -n N` with N > 1 |
-| Hanging on large clusters | Check MPI environment and network |
-| Pickling errors | Ensure likelihood is module-level function |
-
-### Debugging
-
-Run with verbose MPI output:
-
-```bash
-mpiexec -n 4 --verbose python script.py
-```
+For detailed documentation, visit [ezmpi.readthedocs.io](https://ezmpi.readthedocs.io).

@@ -113,17 +113,19 @@ For HPC clusters and distributed computing, use MPI via `mpi4py`.
 
 ### Setup
 
-First, install mpi4py:
+First, install ezmpi:
 
 ```bash
-pip install mpi4py
+pip install ezmpi
 ```
+
+This will install mpi4py and provide the MPIPool class.
 
 ### Using MPIPool
 
 ```python
 import tempest as tp
-from tempest import MPIPool
+from ezmpi import MPIPool
 
 # Create MPI pool
 pool = MPIPool()
@@ -152,7 +154,7 @@ mpiexec -n 8 python my_script.py
 # mpi_example.py
 import numpy as np
 import tempest as tp
-from tempest import MPIPool
+from ezmpi import MPIPool
 
 def log_likelihood(x):
     """Expensive likelihood calculation."""
@@ -195,6 +197,9 @@ mpiexec -n 16 python mpi_example.py
 !!! tip "Worker Scaling"
     - MPI uses N-1 workers (one process is the master)
     - Set `n_active` divisible by the number of workers
+
+!!! info "About ezmpi"
+    Tempest delegates MPI parallelization to the [ezmpi](https://github.com/minaskar/ezmpi) package. Install it with `pip install ezmpi`.
 
 !!! warning "Cluster Job Scripts"
     On HPC systems, ensure your job script requests the correct resources:

@@ -18,7 +18,6 @@ __description__ = "A Python implementation of Persistent Sampling for accelerate
 
 
 from .sampler import *
-from .parallel import *
 from .modes import ModeStatistics
 from ._version import version
 
