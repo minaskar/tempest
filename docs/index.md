@@ -72,6 +72,16 @@ logz, logz_err = sampler.evidence()
 
 ---
 
+## Examples
+
+Explore more applications of Tempest:
+
+- [Rosenbrock Distribution](examples/rosenbrock.md) - Sampling from a challenging banana-shaped distribution
+- [Gaussian Mixture](examples/gaussian_mixture.md) - Handling multimodal posteriors with clustering
+- [Bayesian Model Comparison](examples/model_comparison.md) - Using Bayes factors to compare competing models
+
+---
+
 ## Installation
 
 Install Tempest using pip:

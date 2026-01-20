@@ -26,6 +26,8 @@ dependencies = [
     "scipy>=1.4.0",
     "dill>=0.3.8",
     "multiprocess>=0.70.15",
+    "matplotlib>=3.7.5",
+    "corner>=2.2.1",
 ]
 
 [project.urls]

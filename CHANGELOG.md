@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial release of the Tempest package
+- Bayesian model comparison example (linear vs oscillatory models) with Bayes factor calculation and interpretation guide in `docs/examples/model_comparison.md`
+- Standalone executable example script `docs/examples/scripts/model_comparison_standalone.py` for interactive use
 
 ## [0.1.0] - 2026-01-20
 
