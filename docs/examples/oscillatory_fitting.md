@@ -321,39 +321,6 @@ plt.savefig('oscillatory_residuals.png', dpi=150, bbox_inches='tight')
 - These diagnostics confirm the model adequately captures the data structure
 
 ---
-
-## Posterior Predictive Checks
-
-Generate predictions from the posterior to validate model adequacy:
-
-```python
-import numpy as np
-
-# Sample from posterior
-n_pred = 200
-idx = np.random.choice(len(samples), size=n_pred, p=weights, replace=True)
-pred_samples = samples[idx]
-
-# Generate predictions on dense grid
-x_test = np.linspace(0, 3, 200)
-predictions = np.zeros((n_pred, len(x_test)))
-
-for i, theta in enumerate(pred_samples):
-    A, B, omega, phi, _ = theta
-    predictions[i] = (A * x_test + B) * np.sin(omega * x_test + phi)
-
-# Compute percentiles
-lower, median, upper = np.percentile(predictions, [5, 50, 95], axis=0)
-
-# Plot with 90% prediction interval
-plt.fill_between(x_test, lower, upper, alpha=0.3, 
-                 label="90% prediction interval")
-plt.plot(x_test, median, 'r-', label="Median prediction")
-plt.scatter(x, y_obs, alpha=0.6, s=50, color='black', label="Data")
-plt.legend()
-plt.xlabel("x")
-plt.ylabel("y")
-plt.title("Posterior Predictive Check")
 ```
 
 ## Summary
