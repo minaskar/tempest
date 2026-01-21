@@ -21,7 +21,6 @@ This guide explains how Persistent Sampling (PS) works, from the high-level conc
   - [4.3 Clustering for Multimodal Distributions](#43-clustering-for-multimodal-distributions)
 - [5. Comparison with Other Methods](#5-comparison-with-other-methods)
 - [6. Understanding Diagnostics](#6-understanding-diagnostics)
-- [7. Troubleshooting Guide](#7-troubleshooting-guide)
 
 ---
 
@@ -37,7 +36,7 @@ Bayesian inference lets us update our beliefs about parameters after seeing data
 
 ### Traditional Methods and Their Limitations
 
-**MCMC (Markov Chain Monte Carlo)** works like a random walker but struggles with multimodality and correlations between parameters.
+**MCMC (Markov Chain Monte Carlo)** explores parameter space via random-walk proposals, accepting moves that improve posterior probability. It efficiently samples unimodal distributions but struggles with multiple modes and strongly correlated parameters.
 
 **Nested Sampling** builds from the prior but doesn't reuse information efficiently, wasting computational work.
 
@@ -169,16 +168,18 @@ Standard SMC only uses particles from the **previous iteration**. Persistent Sam
 **How it works**:
 
 1. At iteration t, we have particles from iterations 1 through t-1
-2. Each particle θ_i^(s) (from iteration s) gets a weight that accounts for:
-   - Its original distribution π_s
-   - The target distribution π_t
-   - All intermediate distributions
+2. Each particle gets a weight comparing its target density with the mixture of all historical distributions
+3. The weight formula uses the **balance heuristic** for optimal combination:
 
-3. The weight formula (simplified) is:
-   
-   $$w_i^{(s)} \propto \frac{\mathcal{L}(\theta_i^{(s)})^{\beta_t}}{\frac{1}{t-1} \sum_{r=1}^{t-1} \mathcal{L}(\theta_i^{(s)})^{\beta_r}}$$
-   
-   This uses the **balance heuristic** from MIS literature, which optimally combines samples from multiple distributions.
+   $$ \text{logw}_s = \beta_{\text{final}} \cdot \text{logl}_s - \log\left( \sum_{t} \frac{n_t}{N} \cdot e^{\beta_t \cdot \text{logl}_s - \text{logZ}_t} \right) $$
+
+   where:
+   - $\beta_{\text{final}}$ is the target temperature
+   - $\text{logl}_s$ is the particle's log-likelihood
+   - $n_t/N$ weights each iteration by its particle count
+   - The denominator is the **mixture density** of all historical distributions
+
+   This optimally combines samples from multiple distributions without additional likelihood evaluations.
 
 **Why this helps**:
 
@@ -493,11 +494,17 @@ When n_boost is set:
 
 ### Migration from Other Methods
 
-**From emcee**: Replace run_mcmc() with run(), use posterior() instead of flatchain
+**From emcee**:
+- `n_walkers` → Set `n_effective` to similar value (e.g., 32 walkers → n_effective=512, ~16× multiplier)
+- `sampler.run_mcmc()` → `sampler.run()`
+- Samples: `sampler.posterior()` returns `(x, weights, logl)` instead of `sampler.flatchain`
+- Enable clustering for multimodality: `clustering=True`
 
-**From dynesty**: NestedSampler→Sampler, n_effective≈nlive, enable clustering
-
-**From cobbler/smc**: PS is improved SMC with persistent proposals
+**From dynesty**:
+- `nlive` → Set `n_effective` to similar value (direct mapping)
+- `NestedSampler` → Use `Sampler` class
+- Enable clustering for multimodal problems: `clustering=True`
+- PS provides similar evidence estimation with persistence advantage
 
 ---
 
@@ -512,60 +519,21 @@ Iter: 50 [beta=0.85, ESS=512, logZ=-15.3, logL=-12.1, acc=0.42, steps=10, eff=0.
 | Indicator | Healthy Range | What It Means |
 |-----------|---------------|---------------|
 | beta | 0→1 gradual | Current inverse temperature |
-| ESS | 450-550 | Effective sample size (target: 512) |
-| logZ | Increasing | Log evidence estimate |
-| logL | Increasing | Mean log-likelihood |
-| acc | 0.2-0.8 | MCMC acceptance rate |
-| steps | d-10d | MCMC steps taken |
-| eff | >0.5 | MCMC efficiency |
-| K | ≥1 | Number of clusters |
+| ESS | Close to n_effective until β=1, then increases to n_total | Effective sample size |
+| logZ | Stabilizing (not necessarily increasing) | Log evidence estimate |
+| logL | Generally increasing with β | Mean log-likelihood |
+| acc | >0.15 healthy | MCMC acceptance rate |
+| steps | d-10×d okay | MCMC steps taken |
+| eff | >0.1 healthy | MCMC efficiency |
+| K | ≥1 healthy | Number of clusters |
 
-**Healthy sampling**: Smooth β progression, ESS near target, logZ stabilizing, acc 0.3-0.6, eff>0.5, K reflects true modes
+**Healthy sampling**: Smooth β progression, ESS tracking target, logZ converging, acc>0.15, eff>0.1, K reflects modes
 
 **Common patterns**:
 - Beta stuck near 0: prior/likelihood scale mismatch
 - Very low ESS: increase n_effective
-- Low acceptance: enable clustering
+- Low acceptance: enable clustering or try RWM
 - K=1 for multimodal: decrease split_threshold
-
----
-
-## 7. Troubleshooting Guide
-
-### Symptom: Beta Stuck Near Zero
-
-**Solutions**:
-1. Check prior vs likelihood scales match
-2. Reduce n_effective parameter
-3. Verify likelihood returns finite values
-
-### Symptom: Very Low ESS
-
-**Solutions**:
-1. Increase n_effective
-2. Enable boosting for auto-increase near posterior
-3. Tighten ESS_TOLERANCE in config
-
-### Symptom: Low Acceptance Rate
-
-**Solutions**:
-1. Enable clustering: clustering=True
-2. Try RWM: sample='rwm'
-3. Set periodic/reflective boundaries if needed
-
-### Symptom: High Memory Usage
-
-**Solutions**:
-1. Reduce n_active
-2. Use save_every with periodic saving
-3. Use MPI to distribute across nodes
-
-### Symptom: Inconsistent Results Across Runs
-
-**Solutions**:
-1. Set random_state for reproducibility
-2. Increase n_total for convergence
-3. Run multiple chains and check consistency
 
 ---
 
