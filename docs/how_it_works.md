@@ -61,7 +61,89 @@ The result is faster convergence, better multimodal handling, and built-in evide
 
 ---
 
-## 2. Core Algorithm Overview
+## 2. Tempering: Building the Distribution Sequence
+
+### Why Tempering is Necessary
+
+Directly sampling from complex posterior distributions is extremely difficult. The posterior often has:
+
+- **Multiple modes** (separate peaks)
+- **Narrow valleys** (strong correlations)
+- **High curvature** (geometry changes dramatically)
+
+Trying to sample directly is like parachuting into a foggy mountain range at night—you're likely to land in a poor location and get stuck.
+
+**Tempering** solves this by creating a smooth path from a simple distribution (the prior) to the complex posterior, allowing gradual adaptation.
+
+### How Tempering Works
+
+The key idea is to introduce a **temperature parameter β** (beta) that smoothly interpolates between distributions:
+
+- **β = 0**: Prior distribution π(θ) - easy to sample from
+- **β = 1**: Posterior distribution π(θ|D) = L(θ)π(θ)/Z - our target
+- **0 < β < 1**: Intermediate distributions that gradually increase likelihood influence
+
+This creates a sequence of distributions: π₀, π₀.₁, π₀.₂, ..., π₀.₉, π₁.₀
+
+**Why this helps**:
+- Start with simple, well-understood prior
+- Slowly discover posterior structure
+- Never overwhelmed by sudden complexity
+- Particles naturally flow toward high-probability regions
+
+### Temperature Schedule Adaptation
+
+Persistent Sampling automatically determines the temperature schedule using the Effective Sample Size (ESS):
+
+1. At each iteration, find β_next such that ESS ≈ target (default: 512)
+2. If temperature step is too large → ESS drops drastically
+3. If temperature step is too small → waste computation
+4. Use bisection to find optimal β_next
+
+This ensures smooth, stable progression from prior to posterior.
+
+!!! info "Advanced: Mathematical Formulation of Tempering"
+    
+    **Tempering Path**: The sequence of distributions is defined by:
+    
+    $$\pi_\beta(\theta) = \frac{\mathcal{L}(\theta)^\beta \, \pi(\theta)^{1-\beta}}{\mathcal{Z}_\beta}$$
+    
+    where:
+    - $\mathcal{L}(\theta)$ is the likelihood
+    - $\pi(\theta)$ is the prior  
+    - $\mathcal{Z}_\beta$ is the normalizing constant
+    - $\beta \in [0,1]$ is the inverse temperature
+    
+    **Properties**:
+    - At $\beta=0$: $\pi_0(\theta) = \pi(\theta)$ (pure prior)
+    - At $\beta=1$: $\pi_1(\theta) = \frac{\mathcal{L}(\theta)\pi(\theta)}{\mathcal{Z}}$ (posterior)
+    - For intermediate β: Smooth interpolation between prior and posterior
+    
+    **Temperature Adaptation**: The next temperature $\beta_{t+1}$ is chosen to satisfy:
+    
+    $$\beta_{t+1} = \inf\{\beta \in [\beta_t, 1] : \text{ESS}(\beta) \geq \alpha N\}$$
+    
+    where ESS is computed from importance weights $w_i \propto \mathcal{L}(\theta_i)^{\beta - \beta_t}$, and α is the target fraction (typically 0.5-0.9).
+    
+    **Why Tempering Mathematically**: The KL divergence between successive distributions is:
+    
+    $$D_{KL}(\pi_{\beta_t} \|\ \pi_{\beta_{t+1}}) = (\beta_{t+1} - \beta_t) \cdot \text{Var}_{\pi_{\beta_t}}[\log \mathcal{L}(\theta)] + O((\beta_{t+1} - \beta_t)^2)$$
+    
+    This shows that small temperature steps → small KL divergence → stable importance weights.
+
+### The Persistent Sampling Advantage
+
+Standard Sequential Monte Carlo (SMC) also uses tempering, but PS improves upon it by:
+
+- **Retaining all historical particles** rather than discarding them
+- **Using multiple importance sampling** across the entire history
+- **Resampling from a growing pool** of (t-1)×N particles instead of just N
+
+This means PS has more information at each temperature level, leading to better proposals and lower variance estimates.
+
+---
+
+## 3. Core Algorithm Overview
 
 ### The Four-Step Cycle
 
@@ -73,10 +155,39 @@ Prior (β=0) → [Reweight → Train → Resample → Mutate] → Posterior (β=
 
 **Key Concepts**:
 
-- **Tempering**: Gradually increase β from 0 to 1, letting the algorithm adapt slowly
+- **Tempering**: Gradually increase β from 0 to 1, letting the algorithm adapt slowly (see Section 2 for details)
 - **Importance Sampling**: Particles have weights bridging successive temperatures
 - **Persistent Proposals**: Start from previous positions, reusing computational work
 - **Particle System**: Maintain dozens/hundreds of particles exploring simultaneously
+
+### Multiple Importance Sampling (The "Persistence" Innovation)
+
+**What makes PS different from standard SMC?**
+
+Standard SMC only uses particles from the **previous iteration**. Persistent Sampling uses **all historical particles** through **multiple importance sampling (MIS)**.
+
+**How it works**:
+
+1. At iteration t, we have particles from iterations 1 through t-1
+2. Each particle θ_i^(s) (from iteration s) gets a weight that accounts for:
+   - Its original distribution π_s
+   - The target distribution π_t
+   - All intermediate distributions
+
+3. The weight formula (simplified) is:
+   
+   $$w_i^{(s)} \propto \frac{\mathcal{L}(\theta_i^{(s)})^{\beta_t}}{\frac{1}{t-1} \sum_{r=1}^{t-1} \mathcal{L}(\theta_i^{(s)})^{\beta_r}}$$
+   
+   This uses the **balance heuristic** from MIS literature, which optimally combines samples from multiple distributions.
+
+**Why this helps**:
+
+- **More particles**: Instead of N particles, we have (t-1)×N particles
+- **Better coverage**: Historical particles explored different regions
+- **Lower variance**: More particles → more accurate estimates
+- **No extra cost**: Likelihood values are cached from previous iterations
+
+**The key insight**: Treating all historical particles as a **mixture distribution** gives us a rich, diverse sample pool that standard SMC throws away.
 
 ### Pseudocode for the Main Algorithm
 
@@ -230,6 +341,9 @@ return samples, log_evidence
 2. **t-pCN (default) or RWM**:
    - **t-pCN**: t-preconditioned Crank-Nicolson, gradient-free preconditioning for high dimensions
    - **RWM**: Random Walk Metropolis, simpler alternative
+   
+   **Note**: The original Persistent Sampling paper (Karamanis & Seljak, 2025) uses **Random Walk Metropolis (RWM)** with Robbins-Monro adaptation targeting 23.4% acceptance. Tempest extends this by offering **t-pCN** as the default, which provides better mixing in high dimensions (O(d) vs O(d²) scaling).
+   
 3. **Multiple steps**: Run for n_steps iterations (default: 10) or until convergence
 4. **Boundary handling**:
    - **Periodic**: Wrap around (for angles, phases)
@@ -466,8 +580,22 @@ Iter: 50 [beta=0.85, ESS=512, logZ=-15.3, logL=-12.1, acc=0.42, steps=10, eff=0.
 
 ## References
 
-- Karamanis, M., & Seljak, U. (2025). Persistent Sampling: Enhancing the Efficiency of Sequential Monte Carlo. Statistics and Computing, 35(5), 1-22.
+### Primary Persistent Sampling Paper
 
-- Andrieu, C., Doucet, A., & Holenstein, R. (2010). Particle Markov chain Monte Carlo methods. JRSS: Series B, 72(3), 269-342.
+**Persistent Sampling: Enhancing the Efficiency of Sequential Monte Carlo**
+- Authors: Minas Karamanis, Uroš Seljak
+- Journal: Statistics and Computing, 2025, 35(5):144
+- DOI: [https://doi.org/10.1007/s11222-025-10682-y](https://doi.org/10.1007/s11222-025-10682-y)
+- arXiv: [2407.20722](https://arxiv.org/abs/2407.20722)
 
-- Chopin, N. (2002). A sequential particle filter method for static models. Biometrika, 89(3), 539-552.
+This paper introduces the Persistent Sampling algorithm, which systematically retains and reuses particles from all prior iterations to construct a growing, weighted ensemble, achieving significant variance reduction without additional likelihood evaluations.
+
+### Foundational SMC Literature
+
+- Andrieu, C., Doucet, A., & Holenstein, R. (2010). Particle Markov chain Monte Carlo methods. *Journal of the Royal Statistical Society: Series B*, 72(3), 269-342.
+
+- Chopin, N. (2002). A sequential particle filter method for static models. *Biometrika*, 89(3), 539-552.
+
+- Del Moral, P., Doucet, A., & Jasra, A. (2006). Sequential Monte Carlo samplers. *Journal of the Royal Statistical Society: Series B*, 68(3), 411-436.
+
+- Dai, C., Heng, J., Jacob, P. E., & Whiteley, N. (2022). An invitation to sequential Monte Carlo samplers. *Journal of the American Statistical Association*, 117(539), 1587-1600.
