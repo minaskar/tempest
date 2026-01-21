@@ -179,7 +179,27 @@ Fitted σ = 0.247
 
 ### 1. Data and Model Fit
 
-![Oscillatory model fit showing data points, true model, and best-fit prediction](../assets/examples/oscillatory_fit.png)
+```python
+import matplotlib.pyplot as plt
+
+# Generate best-fit prediction
+y_pred = (A_fit * x + B_fit) * np.sin(omega_fit * x + phi_fit)
+
+# Create plot
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.scatter(x, y_obs, alpha=0.6, s=50, color='black', 
+           label='Observed data')
+ax.plot(x, y_true, 'g-', linewidth=2, label='True model', alpha=0.7)
+ax.plot(x, y_pred, 'r-', linewidth=2, label='Best-fit model')
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_title('Oscillatory Model Fit')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.savefig('oscillatory_fit.png', dpi=150, bbox_inches='tight')
+```
+
+![Oscillatory model fit showing data points, true model, and best-fit prediction](assets/examples/oscillatory_fit.png)
 
 The plot shows:
 - **Black points**: Observed data with noise
@@ -190,7 +210,22 @@ The excellent agreement demonstrates successful parameter recovery.
 
 ### 2. Parameter Posteriors
 
-![Corner plot showing posterior distributions for A, B, ω, and φ](../assets/examples/oscillatory_corner.png)
+```python
+import corner
+
+fig = corner.corner(
+    samples[:, :4],  # Exclude sigma for cleaner visualization
+    labels=['A', 'B', r'$\omega$', r'$\phi$'],
+    truths=[A_true, B_true, omega_true, phi_true],
+    show_titles=True,
+    title_fmt='.3f',
+    quantiles=[0.16, 0.5, 0.84],
+    bins=30,
+)
+plt.savefig('oscillatory_corner.png', dpi=150, bbox_inches='tight')
+```
+
+![Corner plot showing posterior distributions for A, B, ω, and φ](assets/examples/oscillatory_corner.png)
 
 **Key observations:**
 - All parameters well-constrained with tight posteriors
@@ -199,22 +234,91 @@ The excellent agreement demonstrates successful parameter recovery.
 
 ### 3. Posterior Predictive Distribution
 
-![Posterior predictive distribution with 68% credible interval](../assets/examples/oscillatory_predictive.png)
+```python
+# Generate posterior predictive samples
+n_predictive = 200
+idx = np.random.choice(len(samples), size=n_predictive, 
+                       p=weights, replace=True)
+predictive_samples = samples[idx]
 
-This plot shows:
-- **Median prediction** (red line): Best estimate of the underlying function
-- **68% credible interval** (red shaded): Uncertainty in the prediction
-- **True model** (green dashed): For comparison
+# Predictions on dense grid
+x_dense = np.linspace(0, 3, 200)
+predictions = np.zeros((n_predictive, len(x_dense)))
+for i, theta in enumerate(predictive_samples):
+    A, B, omega, phi, _ = theta
+    predictions[i] = (A * x_dense + B) * np.sin(omega * x_dense + phi)
 
-The narrow credible interval indicates high confidence in the fit.
+# Compute percentiles
+q16, q50, q84 = np.percentile(predictions, [16, 50, 84], axis=0)
+
+# Plot
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.fill_between(x_dense, q16, q84, alpha=0.3, color='red',
+                label='68% credible interval')
+ax.plot(x_dense, q50, 'r-', linewidth=2, label='Median prediction')
+ax.scatter(x, y_obs, alpha=0.6, s=50, color='black', 
+           label='Observed data')
+ax.plot(x_dense, (A_true * x_dense + B_true) * 
+        np.sin(omega_true * x_dense + phi_true),
+        'g--', linewidth=2, alpha=0.7, label='True model')
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_title('Posterior Predictive Distribution')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.savefig('oscillatory_predictive.png', dpi=150, bbox_inches='tight')
+```
+
+![Posterior predictive distribution with 68% credible interval](assets/examples/oscillatory_predictive.png)
+
+**Key observations:**
+- The median prediction closely follows the true model
+- 68% credible interval captures the true trajectory
+- Narrow band indicates high confidence in the fit
+- The interval properly accounts for observation noise
 
 ### 4. Residuals Analysis
 
-![Residual plots showing residuals vs fitted and histogram](../assets/examples/oscillatory_residuals.png)
+```python
+# Calculate residuals
+residuals = y_obs - y_pred
 
-**Left**: Residuals vs fitted values - no systematic patterns indicate good fit
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-**Right**: Residual histogram with overlaid Gaussian (red) - closely matches the fitted noise model
+# Residuals vs fitted
+ax1.scatter(y_pred, residuals, alpha=0.6, s=50, color='black')
+ax1.axhline(y=0, color='r', linestyle='--', alpha=0.7, linewidth=2)
+ax1.set_xlabel('Fitted values')
+ax1.set_ylabel('Residuals')
+ax1.set_title('Residuals vs Fitted')
+ax1.grid(True, alpha=0.3)
+
+# Histogram with Gaussian overlay
+ax2.hist(residuals, bins=15, alpha=0.7, color='gray', 
+         edgecolor='black', density=True)
+ax2.axvline(x=0, color='r', linestyle='--', alpha=0.7, linewidth=2)
+
+x_norm = np.linspace(residuals.min(), residuals.max(), 100)
+y_norm = np.exp(-0.5 * (x_norm / sigma_fit) ** 2) / (sigma_fit * np.sqrt(2 * np.pi))
+ax2.plot(x_norm, y_norm, 'r-', linewidth=2, 
+         label=f'N(0, {sigma_fit:.3f})')
+ax2.set_xlabel('Residuals')
+ax2.set_ylabel('Density')
+ax2.set_title('Residual Distribution')
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('oscillatory_residuals.png', dpi=150, bbox_inches='tight')
+```
+
+![Residual plots showing residuals vs fitted and histogram](assets/examples/oscillatory_residuals.png)
+
+**Key observations:**
+- No systematic patterns in residuals vs fitted values
+- Histogram closely matches the Gaussian noise model
+- Residual standard deviation (0.242) matches fitted σ (0.247)
+- These diagnostics confirm the model adequately captures the data structure
 
 ---
 
@@ -252,150 +356,14 @@ plt.ylabel("y")
 plt.title("Posterior Predictive Check")
 ```
 
----
-
-## Best Practices for Oscillatory Models
-
-### 1. Prior Selection
-
-- **Frequency**: Upper bound should respect Nyquist criterion
-  ```python
-  max_freq = np.pi / np.min(np.diff(x))  # Nyquist frequency
-  omega = max_freq * u[2]  # U(0, max_freq)
-  ```
-
-- **Phase**: Always use Uniform(0, 2π) to maintain periodicity
-
-- **Amplitude**: Scale priors with observed data range
-  ```python
-  y_range = np.max(y_obs) - np.min(y_obs)
-  A = y_range * u[0]  # U(0, y_range)
-  ```
-
-### 2. Parameterization Considerations
-
-- **Phase ambiguity**: The model y = sin(ωx + φ) has a 2π phase ambiguity
-  - Tempest naturally handles this with periodic priors
-  - Posterior may show multi-modalities if frequency is poorly constrained
-
-- **Frequency-amplitude correlation**: High correlation between ω and amplitude parameters
-  - Consider using informative priors or reparameterization
-  - Check posterior correlations in corner plots
-
-### 3. Convergence Diagnostics
-
-Monitor sampling quality:
-
-```python
-# Evidence error should be < 0.5 for reliable results
-logz, logz_err = sampler.evidence()
-print(f"logZ error: {logz_err:.3f}")
-
-# Effective sample size relative to total samples
-ess = len(samples)  # Weighted posterior samples
-print(f"Effective samples: {ess}")
-```
-
-### 4. Model Validation
-
-Always perform model validation:
-
-1. **Residual analysis**: Check for systematic patterns
-2. **Posterior predictive checks**: Compare predictions to data
-3. **Cross-validation**: Test on held-out data if available
-4. **Parameter recovery**: Test with synthetic data (as done here)
-
----
-
-## Common Issues and Solutions
-
-### Issue: Frequency Poorly Constrained
-
-**Symptoms**: Wide posterior for ω, poor fit quality
-
-**Solutions**:
-- Increase sampling time (`n_total`)
-- Tighten prior based on domain knowledge
-- Ensure sufficient data coverage of multiple periods
-
-### Issue: Phase Wrapping
-
-**Symptoms**: Multi-modal posterior for φ
-
-**Solutions**: 
-- This is often normal due to 2π periodicity
-- Check that ω posteriors are well-constrained
-- Consider reporting φ modulo 2π
-
-### Issue: High Parameter Correlations
-
-**Symptoms**: Degenerate contours in corner plots
-
-**Solutions**:
-- Increase `n_effective` for better exploration
-- Consider reparameterization (e.g., using amplitude/phase instead of separate A/B)
-- Check for model identifiability issues
-
----
-
-## Extensions and Variations
-
-### 1. Multiple Frequencies
-
-Extend to multiple oscillatory components:
-
-```python
-def log_likelihood(theta):
-    A1, B1, omega1, phi1, A2, B2, omega2, phi2, sigma = theta
-    y_pred = ((A1 * x + B1) * np.sin(omega1 * x + phi1) + 
-              (A2 * x + B2) * np.sin(omega2 * x + phi2))
-    return -0.5 * np.sum(((y_obs - y_pred) / sigma) ** 2 + 
-                        np.log(2 * np.pi * sigma**2))
-```
-
-### 2. Non-Sinusoidal Oscillations
-
-Replace sin with other periodic functions:
-
-```python
-# Square wave
-y_pred = (A * x + B) * np.sign(np.sin(omega * x + phi))
-
-# Sawtooth wave
-y_pred = (A * x + B) * ((omega * x + phi) % (2 * np.pi))
-```
-
-### 3. Damped Oscillations
-
-Add exponential decay:
-
-```python
-def log_likelihood(theta):
-    A, B, omega, phi, gamma, sigma = theta
-    y_pred = (A * x + B) * np.exp(-gamma * x) * np.sin(omega * x + phi)
-    return -0.5 * np.sum(((y_obs - y_pred) / sigma) ** 2 + 
-                        np.log(2 * np.pi * sigma**2))
-```
-
----
-
 ## Summary
 
-This example demonstrates:
+This example demonstrates fitting a physically-motivated oscillatory model to data using Tempest. Key takeaways:
 
-- ✅ Fitting a physically-motivated oscillatory model
-- ✅ Proper prior selection for periodic parameters
-- ✅ Parameter estimation with uncertainty quantification
-- ✅ Posterior predictive checks for model validation
-- ✅ Visualization of fit quality and residuals
-- ✅ Best practices for convergence assessment
+- Tempest successfully recovers all 5 model parameters with high accuracy (<15% error)
+- The posterior distributions are well-constrained and capture the true parameter values
+- Posterior predictive checks confirm the model adequately explains the observed data
+- Nested sampling naturally handles parameter correlations and periodic parameter spaces
+- The log-evidence (logZ = -26.36) provides a measure of model fit that automatically penalizes model complexity
 
-Tempest's nested sampling algorithm naturally handles the multi-modal likelihood landscape that often arises in oscillatory models, providing robust evidence estimates and posterior samples even with moderate numbers of parameters.
-
----
-
-## References
-
-- Skilling, J. (2006). Nested sampling for general Bayesian computation. *Bayesian Analysis*, 1(4), 833-859.
-- Bretthorst, G. L. (1988). *Bayesian Spectrum Analysis and Parameter Estimation*. Springer.
-- Gregory, P. C. (2005). *Bayesian Logical Data Analysis for the Physical Sciences*. Cambridge University Press.
+The combination of accurate parameter recovery, realistic uncertainty quantification, and robust model validation demonstrates Tempest's effectiveness for oscillatory model fitting in scientific applications.
