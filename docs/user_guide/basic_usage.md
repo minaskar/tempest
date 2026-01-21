@@ -248,19 +248,72 @@ sampler = tp.Sampler(
 
 ---
 
-## Output Configuration
+## Reproducibility
 
-Control where results are saved:
+Set a random seed for reproducible results:
 
 ```python
 sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
-    output_dir="my_results",   # Directory for state files
-    output_label="analysis_1", # Prefix for state files
+    random_state=42,
 )
 ```
+
+---
+
+## Example: Full Configuration
+
+```python
+import numpy as np
+import tempest as tp
+
+n_dim = 10
+
+def prior_transform(u):
+    return 20 * u - 10
+
+def log_likelihood(x):
+    return -0.5 * np.sum(x**2)
+
+# Configure everything
+sampler = tp.Sampler(
+    prior_transform=prior_transform,
+    log_likelihood=log_likelihood,
+    n_effective=1024,
+    n_active=512,
+    n_boost=2048,
+    vectorize=False,
+    sample='tpcn',
+    n_steps=n_dim,
+    n_max_steps=10 * n_dim,
+    clustering=True,
+    normalize=True,
+    metric='ess',
+    resample='mult',
+    output_dir='results',
+    output_label='gaussian',
+    random_state=42,
+)
+
+# Run with checkpointing
+sampler.run(n_total=8192, save_every=20, progress=True)
+
+# Get results
+samples, weights, logl = sampler.posterior()
+logz, logz_err = sampler.evidence()
+```
+
+---
+
+## Next Steps
+
+- **Understand the algorithm**: Read [How Persistent Sampling Works](../how_it_works.md) to understand the four-step pipeline
+- **Configure priors**: Learn about [Prior Distributions](priors.md)
+- **Scale up**: Explore [Parallelization](parallelization.md) for large problems
+- **See examples**: Check out [Rosenbrock](../examples/rosenbrock.md) and other examples
+- **Fine-tune**: See [Advanced Features](advanced.md) for optimization tips
 
 State files will be saved as `my_results/analysis_1_*.state`.
 

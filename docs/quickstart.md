@@ -160,6 +160,7 @@ print(f"log(Z) = {logz:.2f}")
 
 ## Next Steps
 
+- Understand the [algorithm](how_it_works.md) behind Tempest
 - Learn about [Prior Distributions](user_guide/priors.md)
 - Explore [Parallelization](user_guide/parallelization.md) for large problems
 - Check out more [Examples](examples/rosenbrock.md)

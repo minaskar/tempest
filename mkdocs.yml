@@ -88,6 +88,8 @@ nav:
   - Getting Started:
     - Installation: installation.md
     - Quick Start: quickstart.md
+  - Algorithm Guide:
+    - How It Works: how_it_works.md
   - User Guide:
     - Basic Usage: user_guide/basic_usage.md
     - Prior Distributions: user_guide/priors.md
