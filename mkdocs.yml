@@ -81,7 +81,7 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/minaskar/tempest
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/tempest/
+      link: https://pypi.org/project/tempest-sampler/
 
 nav:
   - Home: index.md

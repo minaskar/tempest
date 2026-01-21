@@ -87,7 +87,7 @@ Explore more applications of Tempest:
 Install Tempest using pip:
 
 ```bash
-pip install tempest
+pip install tempest-sampler
 ```
 
 Or from source:

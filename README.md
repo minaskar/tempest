@@ -26,7 +26,7 @@ Read the docs at [tempest-sampler.readthedocs.io](https://tempest-sampler.readth
 To install ``tempest`` using ``pip`` run:
 
 ```bash
-pip install tempest
+pip install tempest-sampler
 ```
 
 or, to install from source:
@@ -34,7 +34,7 @@ or, to install from source:
 ```bash
 git clone https://github.com/minaskar/tempest.git
 cd tempest
-python setup.py install
+pip install .
 ```
 
 ## Basic example

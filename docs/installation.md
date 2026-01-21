@@ -19,7 +19,7 @@ Tempest requires Python 3.8 or later and depends on the following packages:
 The simplest way to install Tempest is via pip:
 
 ```bash
-pip install tempest
+pip install tempest-sampler
 ```
 
 This will install Tempest and all its dependencies.
@@ -33,7 +33,7 @@ You can also install Tempest using conda by first creating a conda environment a
 ```bash
 conda create -n tempest-env python=3.11
 conda activate tempest-env
-pip install tempest
+pip install tempest-sampler
 ```
 
 ---
@@ -72,7 +72,7 @@ This will automatically install `mpi4py` and provide the `MPIPool` class used by
 For development and testing:
 
 ```bash
-pip install tempest[dev]
+pip install tempest-sampler[dev]
 ```
 
 Or install testing dependencies manually:
@@ -109,7 +109,7 @@ pytest tests/
 If you get permission errors during installation, try:
 
 ```bash
-pip install --user tempest
+pip install --user tempest-sampler
 ```
 
 Or use a virtual environment (recommended).

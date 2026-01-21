@@ -10,7 +10,7 @@ __bibtex__ = """
   publisher={Springer}
 }
 """
-__url__ = "https://tempest.readthedocs.io"
+__url__ = "https://tempest-sampler.readthedocs.io"
 __author__ = "Minas Karamanis"
 __email__ = "minaskar@gmail.com"
 __license__ = "MIT"
