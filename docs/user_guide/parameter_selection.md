@@ -36,13 +36,11 @@ These are the most important parameters for controlling Tempest's behavior.
 
 ### `n_active` (active particles)
 
-**Purpose**: Number of particles updated in each iteration. Like a batch size.
+**Purpose**: Number of particles updated in each iteration. Controls iteration granularity.
 
-**Optimal value**: `n_effective // 2` (half the effective sample size)
+**Optimal value**: `n_effective // 2` is optimal for all problems. Not recommended to change this.
 
-**Trade-off**: Lower values run faster, higher values give more accurate updates. Must be less than `n_effective`.
-
-**Rule**: Set to `n_effective // 2` unless you have specific reasons to adjust.
+**Trade-off**: Lower values → more iterations but shorter; higher values → fewer iterations but longer. Must be less than `n_effective`.
 
 ### `n_total` (total samples to collect)
 
