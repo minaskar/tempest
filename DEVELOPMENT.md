@@ -39,7 +39,7 @@ Update `CHANGELOG.md` when:
 
 ### Release Process
 
-1. Update version in `tempest/_version.py`
+1. Update version in `tempest/__init__.py`
 2. Move `[Unreleased]` entries to new version section:
    ```markdown
    ## [1.1.0] - 2026-01-15
@@ -135,7 +135,7 @@ When submitting a PR:
 ## Release Checklist
 
 Before creating a release:
-- [ ] Update version number in `tempest/version.py`
+- [ ] Update version number in `tempest/__init__.py`
 - [ ] Update CHANGELOG.md with all changes
 - [ ] Ensure all tests pass
 - [ ] Update documentation if needed
