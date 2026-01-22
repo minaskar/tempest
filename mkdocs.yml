@@ -94,6 +94,7 @@ nav:
     - Basic Usage: user_guide/basic_usage.md
     - Prior Distributions: user_guide/priors.md
     - Parallelization: user_guide/parallelization.md
+    - Parameter Selection: user_guide/parameter_selection.md
     - Advanced Features: user_guide/advanced.md
   - Examples:
     - Rosenbrock Distribution: examples/rosenbrock.md
