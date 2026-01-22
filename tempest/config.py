@@ -16,8 +16,8 @@ class SamplerConfig:
     n_dim: int
 
     # Sampling parameters
-    n_effective: int = 512
-    n_active: int = 256
+    n_effective: Optional[int] = 512
+    n_active: Optional[int] = None
     n_boost: Optional[int] = None
 
     # Likelihood configuration
@@ -69,15 +69,27 @@ class SamplerConfig:
         if self.output_label is None:
             object.__setattr__(self, "output_label", "ps")
 
-        # Compute n_active/n_effective defaults if not set
+        # Get the current values (may be None)
         n_active = self.n_active
         n_effective = self.n_effective
 
-        # If both are defaults (512 and 256), they're already consistent
-        if n_active <= 0:
-            object.__setattr__(self, "n_active", max(1, n_effective // 2))
-        if n_effective <= 0:
+        # Default logic based on which values are provided
+        if n_active is None and n_effective is None:
+            # Both None: use standard defaults
+            object.__setattr__(self, "n_effective", 512)
+            object.__setattr__(self, "n_active", 256)
+        elif n_active is None:
+            # Only n_active is None, compute it from n_effective
+            if n_effective is None:
+                # This should not happen (handled above), but be defensive
+                object.__setattr__(self, "n_effective", 512)
+                object.__setattr__(self, "n_active", 256)
+            else:
+                object.__setattr__(self, "n_active", max(1, n_effective // 2))
+        elif n_effective is None:
+            # Only n_effective is None, compute it from n_active
             object.__setattr__(self, "n_effective", n_active * 2)
+        # else: both provided explicitly, use as-is
 
         # Compute n_steps/n_max_steps defaults
         if self.n_steps is None or self.n_steps <= 0:
@@ -98,6 +110,16 @@ class SamplerConfig:
             errors.append("log_likelihood must be callable")
         if not isinstance(self.n_dim, int) or self.n_dim <= 0:
             errors.append(f"n_dim must be positive int, got {self.n_dim}")
+
+        # Check active/effective are positive integers
+        if not isinstance(self.n_active, int) or not isinstance(self.n_effective, int):
+            errors.append("n_active and n_effective must be integers")
+        if self.n_active is not None and self.n_active <= 0:
+            errors.append(f"n_active must be positive integer, got {self.n_active}")
+        if self.n_effective is not None and self.n_effective <= 0:
+            errors.append(
+                f"n_effective must be positive integer, got {self.n_effective}"
+            )
 
         # Check active/effective relationship
         if self.n_active >= self.n_effective:

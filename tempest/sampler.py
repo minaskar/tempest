@@ -25,7 +25,7 @@ class Sampler:
         log_likelihood: callable,
         n_dim: int,
         n_effective: int = 512,
-        n_active: int = 256,
+        n_active: Optional[int] = None,
         n_boost: int = None,
         log_likelihood_args: Optional[list] = None,
         log_likelihood_kwargs: Optional[dict] = None,
@@ -53,6 +53,68 @@ class Sampler:
 
         Parameters are validated and stored in SamplerConfig, then delegated
         to SamplerCore for execution.
+
+        Parameters
+        ----------
+        prior_transform : callable
+            Function transforming unit hypercube samples [0,1] to prior parameter space.
+        log_likelihood : callable
+            Function computing log-likelihood for given parameter values.
+        n_dim : int
+            Number of dimensions/parameters in the problem.
+        n_effective : int, optional
+            Target effective sample size (default: 512). Primary parameter controlling
+            resolution and variance of results. Higher values capture more complex
+            posterior structure at increased computational cost.
+        n_active : Optional[int], optional
+            Number of active particles per iteration. When None (default), automatically
+            computed as n_effective // 2 (optimal for most cases). For parallelization
+            with pool > 1, manually set to integer multiple of CPU cores close to
+            n_effective // 2 (40-60% range) for optimal load balancing.
+        n_boost : int, optional
+            Dynamic particle boost target for wide priors. Set to 2-4× n_effective
+            for posterior-only estimation or leave as None (default).
+        log_likelihood_args : list, optional
+            Positional arguments to pass to log_likelihood function.
+        log_likelihood_kwargs : dict, optional
+            Keyword arguments to pass to log_likelihood function.
+        vectorize : bool, optional
+            If True, likelihood function accepts batched inputs (n_samples, n_dim).
+            Default is False.
+        blobs_dtype : str, optional
+            NumPy dtype string for auxiliary data returned by likelihood.
+        periodic : list[int], optional
+            List of parameter indices with periodic boundary conditions.
+        reflective : list[int], optional
+            List of parameter indices with reflective boundary conditions.
+        pool : int or object, optional
+            Parallelization pool. Can be number of processes or Pool object.
+        clustering : bool, optional
+            Enable hierarchical Gaussian mixture clustering. Default is True.
+        normalize : bool, optional
+            Normalize clusters during training. Default is True.
+        cluster_every : int, optional
+            Train clusterer every N iterations. Default is 1.
+        split_threshold : float, optional
+            Threshold for splitting clusters. Default is 1.0.
+        n_max_clusters : int, optional
+            Maximum number of clusters. None means no limit.
+        metric : str, optional
+            Metric for effective sample size: 'ess' or 'uss'. Default is 'ess'.
+        sample : str, optional
+            MCMC proposal method: 'tpcn' or 'rwm'. Default is 'tpcn'.
+        n_steps : int, optional
+            MCMC steps per iteration. Default is n_dim // 2.
+        n_max_steps : int, optional
+            Maximum MCMC steps. Default is 10 × n_steps.
+        resample : str, optional
+            Resampling method: 'mult' or 'syst'. Default is 'mult'.
+        output_dir : str, optional
+            Output directory for state files. Default is 'states'.
+        output_label : str, optional
+            Label prefix for output files. Default is 'ps'.
+        random_state : int, optional
+            Random seed for reproducibility.
         """
         # Wrap likelihood function
         wrapped_likelihood = FunctionWrapper(

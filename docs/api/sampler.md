@@ -53,7 +53,6 @@ sampler = tp.Sampler(
     log_likelihood=log_likelihood,
     n_dim=n_dim,
     n_effective=512,
-    n_active=256,
 )
 ```
 
@@ -64,8 +63,8 @@ sampler = tp.Sampler(
 | `prior_transform` | callable | - | Prior distribution or transform function |
 | `log_likelihood` | callable | - | Log-likelihood function |
 | `n_dim` | int | - | Number of dimensions |
-| `n_effective` | int | 512 | Target effective sample size |
-| `n_active` | int | 256 | Active particles per iteration |
+| `n_effective` | int | 512 | Target effective sample size - primary parameter controlling resolution and variance |
+| `n_active` | Optional[int] | None | Active particles per iteration. None (default) computes as n_effective // 2. For parallelization, set to integer multiple of CPU count (40-60% of n_effective). |
 | `vectorize` | bool | False | Vectorized likelihood evaluation |
 | `pool` | Pool/int | None | Parallelization pool |
 | `clustering` | bool | True | Enable hierarchical clustering |
@@ -129,7 +128,8 @@ sampler = tp.Sampler(
     log_likelihood=log_likelihood,
     n_dim=n_dim,
     pool=8,  # 8 processes
-    n_active=256,  # Divisible by pool size
+    # n_active is optional - automatically set to n_effective // 2 = 256
+    # For optimal load balancing: n_active=256 (evenly divisible by 8)
 )
 ```
 

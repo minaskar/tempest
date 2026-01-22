@@ -322,18 +322,29 @@ def log_likelihood_timed(x):
 | 1-100 ms | Multiprocessing or vectorization |
 | > 100 ms | MPI for clusters |
 
-### Efficient n_active Selection
+### Efficient n_active Selection (Optional)
+
+When using parallelization (`pool > 1`), you can optimize load balancing by setting `n_active` manually:
 
 ```python
-# For p processes, choose n_active = k * p for some integer k
+# For p processes, choose n_active = k * p close to n_effective // 2
+# Target: 40-60% of n_effective for optimal performance
 n_processes = 8
-n_active = 32 * n_processes  # 256 particles
+n_effective = 512
+target_n_active = n_effective // 2  # 256
+
+# Choose n_active as multiple of n_processes close to target
+# Options: 256 (32 per CPU), 240 (30 per CPU), 224 (28 per CPU), etc.
+n_active = 256  # 256 is evenly divisible by 8
 
 sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
     pool=n_processes,
-    n_active=n_active,
+    n_effective=n_effective,
+    n_active=n_active,  # Optional: for optimal load balancing
 )
 ```
+
+**Note**: This is optional. If you don't specify `n_active`, it defaults to `n_effective // 2` (256 in this case), which works well but may not provide perfect load balancing.

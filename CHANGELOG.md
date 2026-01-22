@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bayesian model comparison example (linear vs oscillatory models) with Bayes factor calculation and interpretation guide in `docs/examples/model_comparison.md`
 - Standalone executable example script `docs/examples/scripts/model_comparison_standalone.py` for interactive use
 
+### Changed
+- **Breaking Change**: `n_active` parameter now defaults to `None` instead of `256`. When `None`, it is automatically computed as `n_effective // 2`. The value `0` is no longer valid and will raise an error.
+- Users no longer need to specify `n_active` in most cases - simply set `n_effective` and `n_active` will be computed automatically
+- For parallelization, optionally set `n_active` to an integer multiple of number of CPUs close to `n_effective // 2` (40-60% of n_effective) for optimal load balancing
+
 ## [0.1.0] - 2026-01-20
 
 ### Added

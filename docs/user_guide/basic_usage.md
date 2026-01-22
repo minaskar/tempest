@@ -34,8 +34,8 @@ sampler = tp.Sampler(
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `n_effective` | 512 | Number of effective particles |
-| `n_active` | 256 | Number of active particles per iteration |
+| `n_effective` | 512 | Target effective sample size - controls resolution and variance |
+| `n_active` | None | Number of active particles per iteration. When None (default), automatically set to n_effective // 2. For parallelization, manually set to integer multiple of CPU count close to n_effective // 2 (40-60% of n_effective). |
 | `n_boost` | `None` | Target number of effective particles to boost towards (absolute value, not a multiplier) |
 | `vectorize` | False | Whether likelihood accepts batched inputs |
 | `pool` | None | Process pool for parallelization |
@@ -281,8 +281,7 @@ def log_likelihood(x):
 sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
-    n_effective=1024,
-    n_active=512,
+    n_effective=1024,  # More particles for higher accuracy
     n_boost=2048,
     vectorize=False,
     sample='tpcn',
@@ -352,8 +351,7 @@ def log_likelihood(x):
 sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
-    n_effective=1024,
-    n_active=512,
+    n_effective=1024,  # More particles for higher accuracy
     n_boost=2048,
     vectorize=False,
     sample='tpcn',

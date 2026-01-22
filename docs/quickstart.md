@@ -83,8 +83,7 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
-    n_effective=512,    # Number of effective samples
-    n_active=256,       # Number of active particles
+    n_effective=512,  # Target effective sample size
 )
 ```
 

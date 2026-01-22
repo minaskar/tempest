@@ -51,7 +51,9 @@ These are the most important parameters for controlling Tempest's behavior.
 
 **Purpose**: Number of particles updated in each iteration. Controls iteration granularity.
 
-**Optimal value**: `n_effective // 2` is optimal for all problems. Not recommended to change this.
+**Default behavior**: Automatically computed as `n_effective // 2` (optimal for most problems). You typically don't need to set this parameter.
+
+**When to set manually**: For parallelization with pool > 1. Set to an integer multiple of the number of CPUs that is close to `n_effective // 2` (between 40% and 60% of n_effective). Example: for 8 CPUs and n_effective=512, use n_active=256 (32 per CPU) or n_active=224 (28 per CPU).
 
 **Trade-off**: Lower values → more iterations but shorter; higher values → fewer iterations but longer. Must be less than `n_effective`.
 
@@ -300,7 +302,7 @@ For publication-quality or critical results, always verify convergence:
 | Parameter | Default | When to Increase | When to Decrease | Critical? |
 |-----------|---------|------------------|------------------|-----------|
 | `n_effective` | 512 | High dim, complex, high variance | Cheap likelihood | Yes |
-| `n_active` | 256 | Not recommended | Not recommended | No |
+| `n_active` | None (auto) | Parallelization only (see guide) | Not recommended | No |
 | `n_total` | 4096 | Need more samples | Quick testing | No |
 | `n_boost` | None | Wide prior for posterior-only | N/A (Don't use) | No* |
 | `n_steps` | n_dim/2 | Biased results | Speed critical | Yes |

@@ -60,12 +60,12 @@ class TestSamplerConfig(unittest.TestCase):
         self.assertEqual(config.n_effective, 100)
 
     def test_n_effective_computed_from_n_active(self):
-        """Test that n_effective defaults to 2*n_active when n_effective=0."""
+        """Test that n_effective defaults to 2*n_active when n_effective=None."""
         config = SamplerConfig(
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             n_dim=5,
-            n_effective=0,  # Explicitly set to 0 to trigger computation
+            n_effective=None,  # Explicitly set to None to trigger computation
             n_active=50,  # This should trigger n_effective = 2*n_active = 100
         )
         # n_active was explicitly set
@@ -284,31 +284,81 @@ class TestSamplerConfig(unittest.TestCase):
             )
         self.assertIn("must be < n_effective", str(cm.exception))
 
-    def test_zero_n_effective_computed(self):
-        """Test that n_effective=0 triggers default computation."""
+    def test_none_n_effective_computed(self):
+        """Test that n_effective=None triggers default computation."""
         config = SamplerConfig(
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             n_dim=5,
-            n_effective=0,
+            n_effective=None,
             n_active=30,  # This should be kept
         )
         # n_effective should be computed as 2*n_active = 60
         self.assertEqual(config.n_effective, 60)
         self.assertEqual(config.n_active, 30)
 
-    def test_zero_n_active_computed(self):
-        """Test that n_active=0 triggers default computation."""
+    def test_none_n_active_computed(self):
+        """Test that n_active=None triggers default computation."""
         config = SamplerConfig(
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             n_dim=5,
             n_effective=100,
-            n_active=0,  # This should trigger computation
+            n_active=None,  # This should trigger computation
         )
         # n_active should be computed as n_effective // 2 = 50
         self.assertEqual(config.n_active, 50)
         self.assertEqual(config.n_effective, 100)
+
+    def test_zero_n_active_raises_error(self):
+        """Test that n_active=0 raises error."""
+        with self.assertRaises(ValueError) as cm:
+            SamplerConfig(
+                prior_transform=self.prior_transform,
+                log_likelihood=self.log_likelihood,
+                n_dim=5,
+                n_effective=100,
+                n_active=0,  # Zero should be invalid
+            )
+        self.assertIn("n_active must be positive integer, got 0", str(cm.exception))
+
+    def test_zero_n_effective_raises_error(self):
+        """Test that n_effective=0 raises error."""
+        with self.assertRaises(ValueError) as cm:
+            SamplerConfig(
+                prior_transform=self.prior_transform,
+                log_likelihood=self.log_likelihood,
+                n_dim=5,
+                n_effective=0,  # Zero should be invalid
+                n_active=50,
+            )
+        self.assertIn("n_effective must be positive integer, got 0", str(cm.exception))
+
+    def test_negative_n_active_raises_error(self):
+        """Test that negative n_active raises error."""
+        with self.assertRaises(ValueError) as cm:
+            SamplerConfig(
+                prior_transform=self.prior_transform,
+                log_likelihood=self.log_likelihood,
+                n_dim=5,
+                n_effective=100,
+                n_active=-10,
+            )
+        self.assertIn("n_active must be positive integer, got -10", str(cm.exception))
+
+    def test_negative_n_effective_raises_error(self):
+        """Test that negative n_effective raises error."""
+        with self.assertRaises(ValueError) as cm:
+            SamplerConfig(
+                prior_transform=self.prior_transform,
+                log_likelihood=self.log_likelihood,
+                n_dim=5,
+                n_effective=-50,
+                n_active=25,
+            )
+        self.assertIn(
+            "n_effective must be positive integer, got -50", str(cm.exception)
+        )
 
 
 if __name__ == "__main__":
