@@ -6,10 +6,10 @@ This guide explains Tempest's parameters and provides heuristics for choosing th
 
 ### Three Fundamental Rules
 
-1. **Increasing `n_effective` should reduce variance in the results**
+1. **Increasing `n_effective` reduces variance in the results**
    - Higher values capture more features but cost more computation
 
-2. **Increasing `n_steps` should reduce bias in the results**
+2. **Increasing `n_steps` reduces bias in the results**
    - More steps give better exploration but cost more computation
 
 3. **Total computational cost scales linearly with `n_effective` and `n_steps`**
