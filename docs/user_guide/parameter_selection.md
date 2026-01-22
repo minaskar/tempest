@@ -4,6 +4,19 @@ This guide explains Tempest's parameters and provides heuristics for choosing th
 
 ## Overview & Philosophy
 
+### Three Fundamental Rules
+
+1. **Increasing `n_effective` should reduce variance in the results**
+   - Higher values capture more features but cost more computation
+
+2. **Increasing `n_steps` should reduce bias in the results**
+   - More steps give better exploration but cost more computation
+
+3. **Total computational cost scales linearly with `n_effective` and `n_steps`**
+   - Doubling either parameter approximately doubles runtime
+
+### Trade-offs
+
 Tempest's parameters control three fundamental trade-offs:
 
 - **Accuracy vs Speed**: More particles and steps give better results but cost more compute
@@ -29,10 +42,10 @@ These are the most important parameters for controlling Tempest's behavior.
 **Scaling heuristics**:
 - Low-dim (2-4D): 256-512
 - Medium-dim (5-15D): 512-1024
-- High-dim (20D+): 1024-2048 (roughly scales with D²)
+- High-dim (20D+): 1024-2048 or more (scales roughly with D² - dimensionality squared)
 - Complex posteriors (multimodal, skewed): Use upper end of range or higher
 
-**Rule**: Start with 512 for 5-10D problems, increase for higher dimensions or complexity.
+**Rule**: Start with 512 for 5-10D problems. For high dimensions (>20D), scale roughly with D².
 
 ### `n_active` (active particles)
 
@@ -92,6 +105,8 @@ Control how particles explore parameter space each iteration.
 - Multiple runs give different results
 
 **Rule**: Increase if results appear biased. Start with `n_dim // 2`, increase to `n_dim` or `2*n_dim` if needed.
+
+**Relationship with efficiency**: The actual number of MCMC steps performed is `n_steps` scaled by the inverse of the efficiency (`eff`). If the efficiency drops, more steps are automatically performed to counter that. Nothing beyond that.
 
 ### `n_max_steps` (maximum MCMC steps)
 
@@ -240,7 +255,7 @@ The progress bar shows key diagnostics:
 - **Solution**: Increase `n_steps` (reduces bias)
 
 **Problem**: Slow progress, many iterations
-- **Solution**: Decrease `n_active` relative to `n_effective`, or enable `n_boost`
+- **Solution**: Reduce `n_effective` (as long as it's large enough to capture posterior geometry), or enable `n_boost`
 
 **Problem**: Missing modes in multimodal posterior
 - **Solution**: Ensure `clustering=True`, increase `n_effective`, use wider priors
@@ -252,6 +267,20 @@ Remember:
 2. **`n_steps`**: Controls bias and exploration (increase if biased)
 
 Most issues can be solved by adjusting these two parameters.
+
+### Verifying Convergence in Critical Analyses
+
+For publication-quality or critical results, always verify convergence:
+
+**Method**: Run two independent samplers with different settings:
+- **Run 1**: Standard settings (`n_effective=512`, `n_steps=n_dim/2`)
+- **Run 2**: More conservative settings (`n_effective=1024`, `n_steps=n_dim`)
+
+**Verification**: Compare the resulting posteriors:
+- If they match closely: Results are converged and reliable
+- If they differ significantly: Neither has converged, increase both parameters further
+
+**Rule**: When in doubt, run with doubled `n_effective` and `n_steps` and verify they give consistent results.
 
 ## Minimal Parameter Selection by Problem Type
 
@@ -271,10 +300,10 @@ Most issues can be solved by adjusting these two parameters.
 | Parameter | Default | When to Increase | When to Decrease | Critical? |
 |-----------|---------|------------------|------------------|-----------|
 | `n_effective` | 512 | High dim, complex, high variance | Cheap likelihood | Yes |
-| `n_active` | 256 | Accuracy over speed | Speed critical | No |
+| `n_active` | 256 | Not recommended | Not recommended | No |
 | `n_total` | 4096 | Need more samples | Quick testing | No |
-| `n_boost` | None | Wide prior, posterior-only | Needs evidence | No* |
-| `n_steps` | n_dim/2 | Biased results, eff<0.1 | Speed critical | Yes |
+| `n_boost` | None | Wide prior for posterior-only | N/A (Don't use) | No* |
+| `n_steps` | n_dim/2 | Biased results | Speed critical | Yes |
 | `n_max_steps` | 10×n_steps | Advanced users only | Advanced users only | No |
 | `clustering` | True | Always True | Never | No |
 | `split_threshold` | 1.0 | Don't change | Don't change | No |
