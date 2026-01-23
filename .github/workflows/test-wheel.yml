@@ -47,7 +47,7 @@ jobs:
         run: |
           python -m venv test_venv
           source test_venv/bin/activate
-          pip install dist/$(ls dist/*.whl | head -1)
+          pip install $(ls dist/*.whl | head -1)
       
       - name: Test package imports in isolation
         run: |
