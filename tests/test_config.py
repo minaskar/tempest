@@ -37,10 +37,10 @@ class TestSamplerConfig(unittest.TestCase):
         )
         # n_active should default to n_effective // 2
         self.assertEqual(config.n_active, 256)
-        # n_steps should default to n_dim // 2
+        # n_steps should default to 5
         self.assertEqual(config.n_steps, 5)
-        # n_max_steps should default to 10 * n_steps
-        self.assertEqual(config.n_max_steps, 50)
+        # n_max_steps should default to 20 * n_steps
+        self.assertEqual(config.n_max_steps, 100)
         # output_dir should default to Path("states")
         self.assertEqual(config.output_dir, Path("states"))
         # output_label should default to "ps"
@@ -269,8 +269,8 @@ class TestSamplerConfig(unittest.TestCase):
         )
         # Custom value should be kept
         self.assertEqual(config.n_steps, 20)
-        # n_max_steps should be 10 * n_steps
-        self.assertEqual(config.n_max_steps, 200)
+        # n_max_steps should be 20 * n_steps
+        self.assertEqual(config.n_max_steps, 400)
 
     def test_n_active_less_than_n_effective(self):
         """Test that n_active must be less than n_effective."""

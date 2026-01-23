@@ -53,8 +53,6 @@ class BaseMCMCRunner(ABC):
         self.sigmas = self._initialize_sigmas()
 
         # Convergence tracking
-        self.best_average_logl = np.mean(logl)
-        self.cnt = 0
         self.iteration = 0
 
     @abstractmethod
@@ -103,22 +101,43 @@ class BaseMCMCRunner(ABC):
             }
             self.progress_bar.update_stats(progress_info)
 
-    def _check_convergence(self) -> bool:
-        """Check if MCMC has converged."""
-        average_logl = self.logl.mean()
-        if average_logl > self.best_average_logl:
-            self.cnt = 0
-            self.best_average_logl = average_logl
-        else:
-            self.cnt += 1
-            threshold = self.n_steps * (self.sigma_0 / np.median(self.sigmas)) ** 2.0
-            if self.cnt >= threshold:
-                return True
+    def _calculate_adaptive_steps(self, current_acceptance: float) -> int:
+        """Calculate adaptive number of MCMC steps based on acceptance rate and sigma."""
+        # Calculate cluster populations
+        cluster_sizes = []
+        for c in range(self.n_clusters):
+            cluster_size = np.sum(self.assignments == c)
+            if cluster_size > 0:
+                cluster_sizes.append(cluster_size)
+        cluster_sizes = np.array(cluster_sizes)
 
-        if self.iteration >= self.n_max:
-            return True
+        # Calculate weighted average sigma across clusters
+        weighted_sigma = np.average(
+            self.sigmas[: len(cluster_sizes)], weights=cluster_sizes
+        )
 
-        return False
+        # Calculate minimum steps: n_steps_0 * n_dim
+        n_steps_min = self.n_steps * self.n_dim
+
+        # Calculate adaptive steps
+        n_steps_adaptive = (
+            self.n_steps
+            * self.n_dim
+            * (0.234 / max(0.01, current_acceptance))
+            * (self.sigma_0 / max(1e-6, weighted_sigma)) ** 2
+        )
+
+        # Apply minimum bound
+        n_steps_final = max(n_steps_min, n_steps_adaptive)
+
+        # Apply maximum bound (n_max_steps_0 * n_dim)
+        n_steps_max = self.n_max * self.n_dim
+        return int(min(n_steps_final, n_steps_max))
+
+    def _check_convergence(self, current_acceptance: float) -> bool:
+        """Check if MCMC should stop based on adaptive step calculation."""
+        adaptive_steps = self._calculate_adaptive_steps(current_acceptance)
+        return self.iteration >= adaptive_steps
 
     def run(
         self,
@@ -170,7 +189,8 @@ class BaseMCMCRunner(ABC):
             self._update_progress_bar(alpha)
 
             # Check convergence
-            if self._check_convergence():
+            current_acceptance = mask_accept.mean()
+            if self._check_convergence(current_acceptance):
                 break
 
         average_efficiency = self.sigmas.mean() / self.sigma_0

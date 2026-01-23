@@ -104,9 +104,12 @@ class Sampler:
         sample : str, optional
             MCMC proposal method: 'tpcn' or 'rwm'. Default is 'tpcn'.
         n_steps : int, optional
-            MCMC steps per iteration. Default is n_dim // 2.
+            Base MCMC steps per dimension at optimal acceptance rate of 23.4%.
+            Actual steps adapt as: n_steps_0 * n_dim * (0.234/acceptance_rate) * (sigma_0/sigma)**2.
+            Default is 5.
         n_max_steps : int, optional
-            Maximum MCMC steps. Default is 10 × n_steps.
+            Maximum MCMC steps per dimension. The actual maximum is n_max_steps * n_dim.
+            Default is 20 × n_steps.
         resample : str, optional
             Resampling method: 'mult' or 'syst'. Default is 'mult'.
         output_dir : str, optional
@@ -327,7 +330,7 @@ class Sampler:
 
     @property
     def n_steps(self) -> int:
-        """Number of MCMC steps."""
+        """Base MCMC steps per dimension at optimal acceptance rate."""
         return self._core.config.n_steps
 
     @property
