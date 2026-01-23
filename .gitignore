@@ -26,3 +26,4 @@ tests/__pycache__/
 AGENTS.md
 .opencode/site/
 site/
+dist/

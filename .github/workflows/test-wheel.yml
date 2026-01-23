@@ -1,0 +1,84 @@
+# This workflow tests the pip-installed package to catch packaging issues
+name: Test Package Wheel
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main", "dev"]
+  workflow_dispatch:
+
+jobs:
+  test-wheel:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.10", "3.12"]
+    
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-wheel-test-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-wheel-test-${{ matrix.python-version }}-
+      
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+      
+      - name: Build package wheel
+        run: |
+          python -m build --wheel
+          echo "Built wheel: $(ls dist/*.whl)"
+      
+      - name: Create clean test environment
+        run: |
+          python -m venv test_venv
+          source test_venv/bin/activate
+          pip install dist/$(ls dist/*.whl | head -1)
+      
+      - name: Test package imports in isolation
+        run: |
+          source test_venv/bin/activate
+          cd /tmp  # Change to directory outside source tree
+          echo "Testing imports from /tmp directory..."
+          python -c "from tempest.sampler import Sampler; print('✓ Sampler imported successfully')"
+          python -c "from tempest.steps import Reweighter; print('✓ Reweighter imported successfully')"
+          python -c "from tempest.steps import Trainer, Resampler, Mutator; print('✓ All steps imported successfully')"
+      
+      - name: Test Sampler instantiation
+        run: |
+          source test_venv/bin/activate
+          cd /tmp
+          python -c "
+          import numpy as np
+          from tempest import Sampler
+          
+          # Simple test case
+          def prior_transform(u):
+              return 2.0 * u - 1.0
+          
+          def log_likelihood(x):
+              return -0.5 * np.sum(x**2)
+          
+          sampler = Sampler(prior_transform, log_likelihood, n_dim=1, n_effective=50)
+          print('✓ Sampler instantiated successfully')
+          print(f'  n_dim: {sampler.n_dim}')
+          print(f'  n_effective: {sampler.n_effective}')
+          "
+      
+      - name: Clean up
+        if: always()
+        run: rm -rf test_venv

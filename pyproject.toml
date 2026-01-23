@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tempest-sampler"
-version = "0.1.1"
+version = "0.1.2"
 authors = [
     {name = "Minas Karamanis", email = "minaskar@gmail.com"},
 ]
@@ -34,6 +34,10 @@ dependencies = [
 Homepage = "https://github.com/minaskar/tempest"
 
 [tool.setuptools]
-packages = ["tempest"]
 zip-safe = false
 include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tempest*"]
+exclude = ["tests*", "docs*"]

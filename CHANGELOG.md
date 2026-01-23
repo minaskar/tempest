@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Critical packaging bug**: Fixed `ModuleNotFoundError: No module named 'tempest.steps'` error that occurred after pip install
+  - Root cause: `pyproject.toml` was only packaging the top-level `tempest` directory, excluding subpackages like `tempest.steps`
+  - Solution: Updated packaging configuration to use automatic package discovery with `packages = find:`
 
+### Added
+- Integration test `tests/test_package_install.py` to verify all submodules are importable
+- New CI workflow `.github/workflows/test-wheel.yml` to test pip-installed package in isolation
+  - Builds wheel and tests imports in clean environment
+  - Tests across Python versions 3.8, 3.10, 3.12
+  - Catches packaging issues that unit tests miss
+
+### Changed
+- Bumped version to 0.1.2
 
 ## [0.1.1] - 2026-01-23
 
