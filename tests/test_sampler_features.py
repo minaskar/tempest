@@ -92,7 +92,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             n_effective=64,
             n_active=32,
             sample="rwm",
-            n_steps=5,  # Shorter steps for RWM
+            n_steps=1,  # Shorter steps for RWM
             clustering=False,
             random_state=0,
         )

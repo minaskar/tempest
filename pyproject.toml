@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tempest-sampler"
-version = "0.1.2"
+version = "0.1.3"
 authors = [
     {name = "Minas Karamanis", email = "minaskar@gmail.com"},
 ]

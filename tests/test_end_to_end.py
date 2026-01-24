@@ -39,7 +39,7 @@ class EndToEndGaussianTestCase(unittest.TestCase):
             n_active=128,
             clustering=False,
             random_state=42,
-            n_steps=5,
+            n_steps=1,
         )
 
         sampler.run(n_total=2048, progress=False)

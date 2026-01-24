@@ -94,7 +94,7 @@ class SamplerConfig:
         # Compute n_steps/n_max_steps defaults
         # n_steps now represents n_steps_0 (base steps per dimension at optimal acceptance rate of 23.4%)
         if self.n_steps is None or self.n_steps <= 0:
-            object.__setattr__(self, "n_steps", 5)
+            object.__setattr__(self, "n_steps", 1)
         # n_max_steps now represents n_max_steps_0 (maximum steps per dimension)
         if self.n_max_steps is None or self.n_max_steps <= 0:
             object.__setattr__(self, "n_max_steps", 20 * self.n_steps)

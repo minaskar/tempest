@@ -37,10 +37,10 @@ class TestSamplerConfig(unittest.TestCase):
         )
         # n_active should default to n_effective // 2
         self.assertEqual(config.n_active, 256)
-        # n_steps should default to 5
-        self.assertEqual(config.n_steps, 5)
+        # n_steps should default to 1
+        self.assertEqual(config.n_steps, 1)
         # n_max_steps should default to 20 * n_steps
-        self.assertEqual(config.n_max_steps, 100)
+        self.assertEqual(config.n_max_steps, 20)
         # output_dir should default to Path("states")
         self.assertEqual(config.output_dir, Path("states"))
         # output_label should default to "ps"
