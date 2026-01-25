@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.4] - 2026-01-24
 
 ### Fixed
 - **Critical packaging bug**: Fixed `ModuleNotFoundError: No module named 'tempest.steps'` error that occurred after pip install
@@ -19,8 +19,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests across Python versions 3.8, 3.10, 3.12
   - Catches packaging issues that unit tests miss
 
+## [0.1.3] - 2026-01-23
+
 ### Changed
-- Bumped version to 0.1.2
+- Default `n_steps` parameter changed from 5 to 1 for improved performance
+
+## [0.1.2] - 2026-01-20
+
+### Added
+- Bayesian model comparison example (linear vs oscillatory models) with Bayes factor calculation and interpretation guide in `docs/examples/model_comparison.md`
+- Standalone executable example script `docs/examples/scripts/model_comparison_standalone.py` for interactive use
+- Adaptive MCMC steps with per-dimension scaling
+
+### Changed (Breaking)
+- `n_active` parameter now defaults to `None` instead of `256`. When `None`, it is automatically computed as `n_effective // 2`. The value `0` is no longer valid and will raise an error.
+- Users no longer need to specify `n_active` in most cases - simply set `n_effective` and `n_active` will be computed automatically
+- For parallelization, optionally set `n_active` to an integer multiple of number of CPUs close to `n_effective // 2` (40-60% of n_effective) for optimal load balancing
+
+### Fixed
+- Documentation inaccuracies and wording fixes in parameter selection guide
 
 ## [0.1.1] - 2026-01-23
 
@@ -114,6 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Performance improvements with no regressions
 - See migration guide for recommended patterns and upgrading existing code
 
-[Unreleased]: https://github.com/minaskar/tempest/compare/v0.1.1...HEAD
+[0.1.4]: https://github.com/minaskar/tempest/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/minaskar/tempest/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/minaskar/tempest/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/minaskar/tempest/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/minaskar/tempest/releases/tag/v0.1.0

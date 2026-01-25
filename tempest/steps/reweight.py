@@ -1,7 +1,8 @@
 """Reweighting step for Persistent Sampling algorithm."""
 
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 from tempest.state_manager import StateManager
 from tempest.tools import ProgressBar, effective_sample_size, unique_sample_size
@@ -181,18 +182,9 @@ class Reweighter:
             new_n_effective = min(new_n_effective, self.n_boost)
             if new_n_effective > self.n_effective:
                 self.n_effective = new_n_effective
-                target_n_active = self.n_boost // 2
                 self.n_active = int(
-                    self.n_active_init
-                    + (target_n_active - self.n_active_init) * r**self.BOOST_STEEPNESS
+                    (self.n_effective / self.n_effective_init) * self.n_active_init
                 )
-
-            # Cap n_effective and n_active at n_boost and n_boost // 2
-            if self.n_effective > self.n_boost:
-                self.n_effective = self.n_boost
-            max_n_active = self.n_boost // 2
-            if self.n_active > max_n_active:
-                self.n_active = max_n_active
 
         self.state.update_current(
             {
