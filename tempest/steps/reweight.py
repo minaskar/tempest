@@ -178,7 +178,11 @@ class Reweighter:
             _, posterior_ess = get_weights_and_ess(1.0)
 
             r = (posterior_ess - 1.0) / self.n_effective
-            new_n_effective = int((1 - r) * self.n_effective_init + r * self.n_boost)
+            # new_n_effective = int((1 - r) * self.n_effective_init + r * self.n_boost)
+            new_n_effective = int(
+                self.n_effective_init
+                + (self.n_boost - self.n_effective_init) * r**self.BOOST_STEEPNESS
+            )
             new_n_effective = min(new_n_effective, self.n_boost)
             if new_n_effective > self.n_effective:
                 self.n_effective = new_n_effective
