@@ -246,11 +246,9 @@ return samples, log_evidence
 
 **When it struggles**: With extreme prior-likelihood scale mismatches
 
-!!! info "Advanced: ESS, USS, and Bisection"
+!!! info "Advanced: Effective Sample Size and Bisection"
     
     **Effective Sample Size**: ESS = 1/Σw_i^2. Maximum N (all equal), minimum 1 (one dominates).
-    
-    **Unique Sample Size**: Alternative metric robust to extreme weights, counts distinct particles after resampling.
     
     **Bisection Algorithm**: Guarantees O(log tolerance) convergence. Adaptive boosting increases target ESS near posterior via sigmoid curve, allocating particles where most valuable.
 

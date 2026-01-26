@@ -98,19 +98,6 @@ class TestSamplerConfig(unittest.TestCase):
             )
         self.assertIn("n_boost (32) must be >= n_effective (64)", str(cm.exception))
 
-    def test_invalid_metric_raises_error(self):
-        """Test that invalid metric raises ValueError."""
-        with self.assertRaises(ValueError) as cm:
-            SamplerConfig(
-                prior_transform=self.prior_transform,
-                log_likelihood=self.log_likelihood,
-                n_dim=2,
-                metric="invalid",  # Invalid metric
-            )
-        self.assertIn(
-            "Invalid metric 'invalid': must be 'ess' or 'uss'", str(cm.exception)
-        )
-
     def test_invalid_sampler_raises_error(self):
         """Test that invalid sampler raises ValueError."""
         with self.assertRaises(ValueError) as cm:
@@ -123,6 +110,17 @@ class TestSamplerConfig(unittest.TestCase):
         self.assertIn(
             "Invalid sampler 'invalid': must be 'tpcn' or 'rwm'", str(cm.exception)
         )
+
+    def test_no_metric_parameter_validation(self):
+        """Test that metric parameter is no longer supported."""
+        # metric parameter should not be valid anymore
+        with self.assertRaises(TypeError):
+            SamplerConfig(
+                prior_transform=self.prior_transform,
+                log_likelihood=self.log_likelihood,
+                n_dim=2,
+                metric="ess",  # This should raise TypeError
+            )
 
     def test_invalid_resample_raises_error(self):
         """Test that invalid resample raises ValueError."""
@@ -245,32 +243,7 @@ class TestSamplerConfig(unittest.TestCase):
             n_effective=128,
             n_active=64,
             clustering=True,
-            metric="uss",
         )
-
-        d = config.to_dict()
-
-        self.assertIsInstance(d, dict)
-        self.assertEqual(d["n_dim"], 5)
-        self.assertEqual(d["n_effective"], 128)
-        self.assertEqual(d["n_active"], 64)
-        self.assertEqual(d["clustering"], True)
-        self.assertEqual(d["metric"], "uss")
-        self.assertEqual(d["output_dir"], "states")  # Stringified Path
-        self.assertEqual(d["output_label"], "ps")
-
-    def test_custom_n_steps(self):
-        """Test that custom n_steps is respected."""
-        config = SamplerConfig(
-            prior_transform=self.prior_transform,
-            log_likelihood=self.log_likelihood,
-            n_dim=10,
-            n_steps=20,  # Custom value
-        )
-        # Custom value should be kept
-        self.assertEqual(config.n_steps, 20)
-        # n_max_steps should be 20 * n_steps
-        self.assertEqual(config.n_max_steps, 400)
 
     def test_n_active_less_than_n_effective(self):
         """Test that n_active must be less than n_effective."""

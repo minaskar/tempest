@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 
 from tempest.state_manager import StateManager
-from tempest.tools import ProgressBar, effective_sample_size, unique_sample_size
+from tempest.tools import ProgressBar, effective_sample_size
 
 
 class Reweighter:
@@ -25,8 +25,6 @@ class Reweighter:
         Target number of effective particles.
     n_active : int
         Current number of active particles.
-    metric : str
-        Metric for effective sample size: "ess" or "uss" (default: "ess").
     ESS_TOLERANCE : float
         Relative tolerance for ESS target (default: 0.01).
     BETA_TOLERANCE : float
@@ -54,7 +52,6 @@ class Reweighter:
         pbar: Optional[ProgressBar] = None,
         n_effective: int = 512,
         n_active: int = 256,
-        metric: str = "ess",
         ESS_TOLERANCE: float = 0.01,
         BETA_TOLERANCE: float = 1e-4,
         n_boost: Optional[int] = None,
@@ -71,7 +68,6 @@ class Reweighter:
         self.n_active = n_active
 
         # Configuration
-        self.metric = metric
         self.ESS_TOLERANCE = ESS_TOLERANCE
         self.BETA_TOLERANCE = BETA_TOLERANCE
         self.n_boost = n_boost
@@ -123,10 +119,7 @@ class Reweighter:
         def get_weights_and_ess(beta):
             logw, _ = self.state.compute_logw_and_logz(beta)
             weights = np.exp(logw - np.max(logw))
-            if self.metric == "ess":
-                ess_est = effective_sample_size(weights)
-            elif self.metric == "uss":
-                ess_est = unique_sample_size(weights)
+            ess_est = effective_sample_size(weights)
             return weights, ess_est
 
         weights_prev, ess_est_prev = get_weights_and_ess(beta_prev)

@@ -22,50 +22,8 @@ class SamplerFeaturesTestCase(unittest.TestCase):
         """Gaussian log likelihood."""
         return np.sum(-0.5 * np.log(2 * np.pi) - 0.5 * x**2, axis=1)
 
-    @staticmethod
-    def log_likelihood_rosenbrock(x):
-        """Rosenbrock distribution (challenging for samplers)."""
-        return -np.sum(
-            10.0 * (x[:, ::2] ** 2.0 - x[:, 1::2]) ** 2.0 + (x[:, ::2] - 1.0) ** 2.0,
-            axis=1,
-        )
-
-    def test_metric_ess(self):
+    def test_tpcn_sampler(self):
         """Test ESS metric."""
-        n_dim = 2
-        sampler = Sampler(
-            prior_transform=self.prior_transform_gaussian,
-            log_likelihood=self.log_likelihood_gaussian,
-            n_dim=n_dim,
-            vectorize=True,
-            n_effective=64,
-            n_active=32,
-            metric="ess",
-            clustering=False,
-            random_state=0,
-        )
-        sampler.run(n_total=128)
-        self.assertIsNotNone(sampler.state.get_current("logz"))
-
-    def test_metric_uss(self):
-        """Test USS metric."""
-        n_dim = 2
-        sampler = Sampler(
-            prior_transform=self.prior_transform_gaussian,
-            log_likelihood=self.log_likelihood_gaussian,
-            n_dim=n_dim,
-            vectorize=True,
-            n_effective=64,
-            n_active=32,
-            metric="uss",
-            clustering=False,
-            random_state=0,
-        )
-        sampler.run(n_total=128)
-        self.assertIsNotNone(sampler.state.get_current("logz"))
-
-    def test_sampler_tpcn(self):
-        """Test t-preconditioned Crank-Nicolson sampler."""
         n_dim = 2
         sampler = Sampler(
             prior_transform=self.prior_transform_gaussian,

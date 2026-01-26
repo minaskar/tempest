@@ -395,27 +395,24 @@ class SampleMethodTestCase(unittest.TestCase):
         for i, state in enumerate(states):
             self.assertEqual(state["iter"], initial_iter + i + 1)
 
-    def test_sample_with_different_metrics(self):
-        """Test sample() with different metrics (ESS vs USS)."""
-        for metric in ["ess", "uss"]:
-            with self.subTest(metric=metric):
-                sampler = Sampler(
-                    prior_transform=self.prior_transform,
-                    log_likelihood=self.log_likelihood_single,
-                    n_dim=self.n_dim,
-                    n_effective=64,
-                    n_active=32,
-                    metric=metric,
-                    clustering=False,
-                    random_state=0,
-                )
+    def test_sample_with_ess_metric(self):
+        """Test sample() with ESS metric."""
+        sampler = Sampler(
+            prior_transform=self.prior_transform,
+            log_likelihood=self.log_likelihood_single,
+            n_dim=self.n_dim,
+            n_effective=64,
+            n_active=32,
+            clustering=False,
+            random_state=0,
+        )
 
-                sampler.run(n_total=128)
-                state = sampler.sample()
+        sampler.run(n_total=128)
+        state = sampler.sample()
 
-                # Should work with both metrics
-                self.assertIsInstance(state, dict)
-                self.assertIn("ess", state)
+        # Should work with ESS metric
+        self.assertIsInstance(state, dict)
+        self.assertIn("ess", state)
 
     def test_sample_with_different_resample_methods(self):
         """Test sample() with different resampling methods."""

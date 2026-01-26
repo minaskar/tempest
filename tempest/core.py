@@ -41,7 +41,6 @@ class SamplerCore:
             pbar=None,  # Will be set in run_sampling
             n_effective=config.n_effective,
             n_active=config.n_active,
-            metric=config.metric,
             ESS_TOLERANCE=ESS_TOLERANCE,  # From centralized config
             BETA_TOLERANCE=BETA_TOLERANCE,  # From centralized config
             n_boost=config.n_boost,
@@ -377,7 +376,7 @@ class SamplerCore:
 
     def _not_termination(self):
         """Check termination (replaces Sampler._not_termination - 27 lines)."""
-        from .tools import effective_sample_size, unique_sample_size
+        from .tools import effective_sample_size
 
         logw, _ = self.state.compute_logw_and_logz(1.0)
 
@@ -386,10 +385,7 @@ class SamplerCore:
             return True
 
         weights = np.exp(logw - np.max(logw))
-        if self.config.metric == "ess":
-            ess = effective_sample_size(weights)
-        elif self.config.metric == "uss":
-            ess = unique_sample_size(weights)
+        ess = effective_sample_size(weights)
 
         beta = self.state.get_current("beta")
         return 1.0 - beta >= 1e-4 or ess < getattr(self, "n_total", 0)

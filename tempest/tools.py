@@ -72,26 +72,6 @@ def effective_sample_size(weights: np.ndarray) -> float:
     return 1.0 / np.sum(weights**2.0)
 
 
-def unique_sample_size(weights: np.ndarray, k: Optional[int] = None) -> float:
-    """
-        Compute unique sample size (ESS).
-
-    Parameters
-    ----------
-    weights : ``np.ndarray``
-        Weights.
-    k : ``int``
-        Number of resampled samples.
-
-    Returns
-    -------
-    uss : ``float``
-        Unique sample size.
-    """
-    if k is None:
-        k = len(weights)
-    weights = weights / np.sum(weights)
-    return np.sum(1.0 - (1.0 - weights) ** k)
 
 
 def compute_ess(logw: np.ndarray):

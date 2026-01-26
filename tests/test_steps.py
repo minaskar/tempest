@@ -31,11 +31,9 @@ class ReweighterTestCase(unittest.TestCase):
             pbar=self.pbar,
             n_effective=512,
             n_active=256,
-            metric="ess",
         )
         self.assertEqual(reweighter.n_effective, 512)
         self.assertEqual(reweighter.n_active, 256)
-        self.assertEqual(reweighter.metric, "ess")
         self.assertIsNotNone(reweighter.state)
 
     def test_first_iteration(self):
@@ -252,8 +250,10 @@ class ResamplerTestCase(unittest.TestCase):
 
     def test_init(self):
         """Test Resampler initialization."""
+
         def n_active_fn():
             return 32
+
         resampler = Resampler(
             state=self.state,
             n_active_fn=n_active_fn,
@@ -268,8 +268,10 @@ class ResamplerTestCase(unittest.TestCase):
     def test_beta_zero_skips_resampling(self):
         """Test Resampler skips at beta=0."""
         n_active = 16
+
         def n_active_fn():
             return n_active
+
         resampler = Resampler(
             state=self.state,
             n_active_fn=n_active_fn,
@@ -289,8 +291,10 @@ class ResamplerTestCase(unittest.TestCase):
     def test_systematic_resampling(self):
         """Test systematic resampling."""
         n_active = 16
+
         def n_active_fn():
             return n_active
+
         resampler = Resampler(
             state=self.state,
             n_active_fn=n_active_fn,
@@ -324,8 +328,10 @@ class ResamplerTestCase(unittest.TestCase):
         """Test multinomial resampling."""
         np.random.seed(42)
         n_active = 16
+
         def n_active_fn():
             return n_active
+
         resampler = Resampler(
             state=self.state,
             n_active_fn=n_active_fn,
@@ -353,8 +359,10 @@ class ResamplerTestCase(unittest.TestCase):
     def test_cluster_assignment(self):
         """Test cluster assignment during resampling."""
         n_active = 16
+
         def n_active_fn():
             return n_active
+
         resampler = Resampler(
             state=self.state,
             n_active_fn=n_active_fn,
@@ -386,8 +394,10 @@ class ResamplerTestCase(unittest.TestCase):
     def test_blobs_resampling(self):
         """Test resampling with auxiliary blobs data."""
         n_active = 8
+
         def n_active_fn():
             return n_active
+
         resampler = Resampler(
             state=self.state,
             n_active_fn=n_active_fn,
@@ -438,8 +448,10 @@ class MutatorTestCase(unittest.TestCase):
 
     def test_init(self):
         """Test Mutator initialization."""
+
         def n_active_fn():
             return 32
+
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,
@@ -458,8 +470,10 @@ class MutatorTestCase(unittest.TestCase):
         """Test Mutator draws fresh prior samples at beta=0."""
         np.random.seed(42)
         n_active = 16
+
         def n_active_fn():
             return n_active
+
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,
@@ -509,6 +523,7 @@ class MutatorTestCase(unittest.TestCase):
 
         def n_active_fn():
             return n_active
+
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,
@@ -544,8 +559,10 @@ class MutatorTestCase(unittest.TestCase):
     def test_mcmc_evolution(self, mock_parallel_mcmc):
         """Test Mutator calls parallel_mcmc at beta>0."""
         n_active = 8
+
         def n_active_fn():
             return n_active
+
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,
@@ -617,6 +634,7 @@ class MutatorTestCase(unittest.TestCase):
 
         def n_active_fn():
             return n_active
+
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,

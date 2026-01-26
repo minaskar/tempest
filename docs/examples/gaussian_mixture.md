@@ -253,7 +253,6 @@ sampler.run(n_total=8192)
 !!! tip "Mode Discovery"
     - Wide priors help discover all modes
     - Watch the `K` value in progress bar for cluster count
-    - The USS metric (`metric='uss'`) can be more reliable
 
 !!! warning "Mode Collapse"
     If sampling collapses to one mode:

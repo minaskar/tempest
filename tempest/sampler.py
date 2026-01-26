@@ -39,7 +39,6 @@ class Sampler:
         cluster_every: int = 1,
         split_threshold: float = 1.0,
         n_max_clusters: Optional[int] = None,
-        metric: str = "ess",
         sample: str = "tpcn",
         n_steps: Optional[int] = None,
         n_max_steps: Optional[int] = None,
@@ -99,8 +98,6 @@ class Sampler:
             Threshold for splitting clusters. Default is 1.0.
         n_max_clusters : int, optional
             Maximum number of clusters. None means no limit.
-        metric : str, optional
-            Metric for effective sample size: 'ess' or 'uss'. Default is 'ess'.
         sample : str, optional
             MCMC proposal method: 'tpcn' or 'rwm'. Default is 'tpcn'.
         n_steps : int, optional
@@ -144,7 +141,6 @@ class Sampler:
             cluster_every=cluster_every,
             split_threshold=split_threshold,
             n_max_clusters=n_max_clusters,
-            metric=metric,
             sample=sample,
             n_steps=n_steps,
             n_max_steps=n_max_steps,
@@ -347,11 +343,6 @@ class Sampler:
     def n_total(self) -> Optional[int]:
         """Total effective samples target."""
         return getattr(self._core, "n_total", None)
-
-    @property
-    def metric(self) -> str:
-        """Metric used (ess or uss)."""
-        return self._core.config.metric
 
     @property
     def resample(self) -> str:

@@ -41,7 +41,6 @@ class SamplerConfig:
     n_max_clusters: Optional[int] = None
 
     # Algorithm parameters
-    metric: str = "ess"
     sample: str = "tpcn"
     n_steps: Optional[int] = None
     n_max_steps: Optional[int] = None
@@ -138,10 +137,6 @@ class SamplerConfig:
                     f"n_boost ({self.n_boost}) must be >= n_effective ({self.n_effective})"
                 )
 
-        # Check metric
-        if self.metric not in ["ess", "uss"]:
-            errors.append(f"Invalid metric '{self.metric}': must be 'ess' or 'uss'")
-
         # Check sampler
         if self.sample not in ["tpcn", "rwm"]:
             errors.append(f"Invalid sampler '{self.sample}': must be 'tpcn' or 'rwm'")
@@ -215,7 +210,6 @@ class SamplerConfig:
             "cluster_every": self.cluster_every,
             "split_threshold": self.split_threshold,
             "n_max_clusters": self.n_max_clusters,
-            "metric": self.metric,
             "sample": self.sample,
             "n_steps": self.n_steps,
             "n_max_steps": self.n_max_steps,
