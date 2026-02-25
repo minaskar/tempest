@@ -3,7 +3,6 @@
 from typing import Optional
 
 import numpy as np
-from matplotlib.axes import Subplot
 
 from tempest.cluster import HierarchicalGaussianMixture
 from tempest.state_manager import StateManager
