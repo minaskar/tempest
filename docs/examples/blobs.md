@@ -55,7 +55,7 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_single_blob,
     n_dim=n_dim,
-    n_effective=512,
+    n_particles=512,
     blobs_dtype=float,  # Each blob is a scalar float
 )
 
@@ -97,7 +97,7 @@ sampler_unnamed = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_multiple_blobs,
     n_dim=n_dim,
-    n_effective=512,
+    n_particles=512,
     blobs_dtype=(float, 3),  # 3 float values per sample
 )
 
@@ -115,7 +115,7 @@ sampler_named = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_multiple_blobs,
     n_dim=n_dim,
-    n_effective=512,
+    n_particles=512,
     blobs_dtype=[
         ("chi2", float),
         ("radius", float),
@@ -158,7 +158,7 @@ sampler_array = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_array_blob,
     n_dim=n_dim,
-    n_effective=512,
+    n_particles=512,
     blobs_dtype=(float, n_dim),  # Each blob is length-n_dim array
 )
 
@@ -174,7 +174,7 @@ sampler_mixed = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_array_blob,
     n_dim=n_dim,
-    n_effective=512,
+    n_particles=512,
     blobs_dtype=[
         ("chi2_total", float),
         ("chi2_per_dim", float, n_dim)  # Array field
@@ -204,7 +204,7 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_multiple_blobs,
     n_dim=n_dim,
-    n_effective=512,
+    n_particles=512,
     blobs_dtype=[("chi2", float), ("radius", float), ("max_abs", float)],
 )
 
@@ -239,7 +239,7 @@ chi2_mean, chi2_cov = tp.utils.weighted_avg_and_cov(blobs["chi2"], weights)
 ### Memory Usage
 Blobs are stored for all active particles at every iteration. Memory scales as:
 ```
-memory ≈ n_iterations × n_active × blob_size × dtype_bytes
+memory ≈ n_iterations × n_particles × blob_size × dtype_bytes
 ```
 For large blobs or long runs, consider periodic saving and clearing.
 
@@ -339,7 +339,7 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood_with_blobs,
     n_dim=n_dim,
-    n_effective=512,
+    n_particles=512,
     blobs_dtype=[
         ("chi2_total", float),
         ("radius", float),

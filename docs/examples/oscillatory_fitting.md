@@ -92,8 +92,7 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=5,
-    n_effective=512,
-    n_active=256,
+    n_particles=512,
     random_state=42,
     vectorize=True,
 )
@@ -113,8 +112,7 @@ N_samples = 2156
 ```
 
 !!! tip "Sampler Configuration"
-    - `n_effective=512`: Target effective sample size
-    - `n_active=256`: Number of active points (balance between speed and accuracy)
+    - `n_particles=512`: Target effective sample size
     - `vectorize=True`: Speed up likelihood evaluations
     - `random_state=42`: For reproducible results
 

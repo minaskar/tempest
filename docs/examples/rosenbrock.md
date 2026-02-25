@@ -60,8 +60,7 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
-    n_effective=1024,
-    n_active=512,
+    n_particles=1024,
     vectorize=True,
     random_state=42,
 )
@@ -135,8 +134,7 @@ for n_dim in [2, 10, 20, 50]:
         prior_transform=prior_transform,
         log_likelihood=log_likelihood,
         n_dim=n_dim,
-        n_effective=max(512, n_dim * 20),
-        n_active=max(256, n_dim * 10),
+        n_particles=max(512, n_dim * 20),
         vectorize=True,
     )
     
@@ -175,7 +173,7 @@ with Pool(4) as pool:
         log_likelihood=log_likelihood_serial,
         n_dim=n_dim,
         pool=pool,
-        n_active=256,  # Multiple of pool size
+        n_particles=256,  # Multiple of pool size
     )
     sampler.run(n_total=4096)
 ```
@@ -185,10 +183,10 @@ with Pool(4) as pool:
 ## Performance Tips
 
 !!! tip "Particle Count"
-    For the Rosenbrock, increase `n_effective` with dimension:
-    - 2D: 256 effective particles
-    - 10D: 512-1024 effective particles
-    - 20D+: 1024-2048 effective particles
+    For the Rosenbrock, increase `n_particles` with dimension:
+    - 2D: 256 particles
+    - 10D: 512-1024 particles
+    - 20D+: 1024-2048 particles
 
 !!! tip "Vectorization"
     Always use `vectorize=True` for the Rosenbrock since it's cheap to evaluate.

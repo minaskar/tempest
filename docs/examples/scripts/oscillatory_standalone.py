@@ -135,16 +135,14 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=5,  # Number of parameters
-    n_effective=512,  # Effective sample size target
-    n_active=256,  # Number of active points
+    n_particles=512,  # Number of particles
     random_state=42,  # For reproducibility
     vectorize=True,  # Enable vectorization for speed
 )
 
 print(f"   Configuration:")
 print(f"     n_dim = {sampler.n_dim} (parameters)")
-print(f"     n_effective = {sampler.n_effective}")
-print(f"     n_active = {sampler.n_active}")
+print(f"     n_particles = {sampler.n_particles}")
 print(f"     random_state = {sampler.random_state}")
 
 # Run sampling

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import warnings
 from dataclasses import dataclass
 from typing import Optional, Union, List, Callable, Any
 from pathlib import Path
@@ -16,9 +17,11 @@ class SamplerConfig:
     n_dim: int
 
     # Sampling parameters
-    n_effective: Optional[int] = 512
-    n_active: Optional[int] = None
-    n_boost: Optional[int] = None
+    n_particles: Optional[int] = None  # Default: 2 * n_dim
+    ess_ratio: float = 2.0  # Target ESS ratio (ESS / n_particles)
+    volume_variation: Optional[float] = (
+        None  # Target coefficient of variation of volume. None disables dynamic mode.
+    )
 
     # Likelihood configuration
     log_likelihood_args: Optional[list] = None
@@ -68,27 +71,9 @@ class SamplerConfig:
         if self.output_label is None:
             object.__setattr__(self, "output_label", "ps")
 
-        # Get the current values (may be None)
-        n_active = self.n_active
-        n_effective = self.n_effective
-
-        # Default logic based on which values are provided
-        if n_active is None and n_effective is None:
-            # Both None: use standard defaults
-            object.__setattr__(self, "n_effective", 512)
-            object.__setattr__(self, "n_active", 256)
-        elif n_active is None:
-            # Only n_active is None, compute it from n_effective
-            if n_effective is None:
-                # This should not happen (handled above), but be defensive
-                object.__setattr__(self, "n_effective", 512)
-                object.__setattr__(self, "n_active", 256)
-            else:
-                object.__setattr__(self, "n_active", max(1, n_effective // 2))
-        elif n_effective is None:
-            # Only n_effective is None, compute it from n_active
-            object.__setattr__(self, "n_effective", n_active * 2)
-        # else: both provided explicitly, use as-is
+        # Set default n_particles if not provided
+        if self.n_particles is None:
+            object.__setattr__(self, "n_particles", 2 * self.n_dim)
 
         # Compute n_steps/n_max_steps defaults
         # n_steps now represents n_steps_0 (base steps per dimension at optimal acceptance rate of 23.4%)
@@ -99,6 +84,16 @@ class SamplerConfig:
             object.__setattr__(self, "n_max_steps", 20 * self.n_steps)
 
         self.validate()
+
+        # Warn if using dynamic mode with insufficient particles
+        if self.volume_variation is not None and self.n_particles < self.n_dim + 1:
+            warnings.warn(
+                f"For dynamic mode, n_particles ({self.n_particles}) "
+                f"should be >= n_dim + 1 ({self.n_dim + 1}) for reliable results. "
+                f"Volume variation calculation may be inaccurate.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def validate(self) -> None:
         """Validate all parameters and raise ValueError if invalid."""
@@ -112,29 +107,29 @@ class SamplerConfig:
         if not isinstance(self.n_dim, int) or self.n_dim <= 0:
             errors.append(f"n_dim must be positive int, got {self.n_dim}")
 
-        # Check active/effective are positive integers
-        if not isinstance(self.n_active, int) or not isinstance(self.n_effective, int):
-            errors.append("n_active and n_effective must be integers")
-        if self.n_active is not None and self.n_active <= 0:
-            errors.append(f"n_active must be positive integer, got {self.n_active}")
-        if self.n_effective is not None and self.n_effective <= 0:
+        # Check n_particles
+        if not isinstance(self.n_particles, int):
+            errors.append(f"n_particles must be int, got {type(self.n_particles)}")
+        if self.n_particles <= 0:
             errors.append(
-                f"n_effective must be positive integer, got {self.n_effective}"
+                f"n_particles must be positive integer, got {self.n_particles}"
             )
 
-        # Check active/effective relationship
-        if self.n_active >= self.n_effective:
-            errors.append(
-                f"n_active ({self.n_active}) must be < n_effective ({self.n_effective})"
-            )
+        # Check ess_ratio
+        if not isinstance(self.ess_ratio, (int, float)):
+            errors.append(f"ess_ratio must be numeric, got {type(self.ess_ratio)}")
+        if self.ess_ratio <= 0:
+            errors.append(f"ess_ratio must be positive, got {self.ess_ratio}")
 
-        # Check n_boost
-        if self.n_boost is not None:
-            if not isinstance(self.n_boost, int):
-                errors.append(f"n_boost must be int or None, got {type(self.n_boost)}")
-            elif self.n_boost < self.n_effective:
+        # Check volume_variation
+        if self.volume_variation is not None:
+            if not isinstance(self.volume_variation, (int, float)):
                 errors.append(
-                    f"n_boost ({self.n_boost}) must be >= n_effective ({self.n_effective})"
+                    f"volume_variation must be numeric or None, got {type(self.volume_variation)}"
+                )
+            elif self.volume_variation <= 0:
+                errors.append(
+                    f"volume_variation ({self.volume_variation}) must be positive"
                 )
 
         # Check sampler
@@ -189,15 +184,29 @@ class SamplerConfig:
                 + "\n".join(f"  - {err}" for err in errors)
             )
 
+    def get_target_metric(self) -> float:
+        """Get the target metric value based on mode.
+
+        Returns
+        -------
+        target : float
+            For ESS mode (volume_variation=None): ess_ratio * n_particles
+            For dynamic mode: volume_variation
+        """
+        if self.volume_variation is not None:
+            return self.volume_variation
+        else:
+            return self.ess_ratio * self.n_particles
+
     def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary for serialization."""
         return {
             "prior_transform": self.prior_transform,
             "log_likelihood": self.log_likelihood,
             "n_dim": self.n_dim,
-            "n_effective": self.n_effective,
-            "n_active": self.n_active,
-            "n_boost": self.n_boost,
+            "n_particles": self.n_particles,
+            "ess_ratio": self.ess_ratio,
+            "volume_variation": self.volume_variation,
             "log_likelihood_args": self.log_likelihood_args,
             "log_likelihood_kwargs": self.log_likelihood_kwargs,
             "vectorize": self.vectorize,
@@ -226,4 +235,3 @@ ESS_TOLERANCE: float = 0.01
 DOF_FALLBACK: float = 1e6
 TRIM_ESS: float = 0.99
 TRIM_BINS: int = 1000
-BOOST_STEEPNESS: float = 0.125

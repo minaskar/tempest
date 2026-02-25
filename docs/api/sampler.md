@@ -63,8 +63,9 @@ sampler = tp.Sampler(
 | `prior_transform` | callable | - | Prior distribution or transform function |
 | `log_likelihood` | callable | - | Log-likelihood function |
 | `n_dim` | int | - | Number of dimensions |
-| `n_effective` | int | 512 | Target effective sample size - primary parameter controlling resolution and variance |
-| `n_active` | Optional[int] | None | Active particles per iteration. None (default) computes as n_effective // 2. For parallelization, set to integer multiple of CPU count (40-60% of n_effective). |
+| `n_particles` | Optional[int] | None | Number of particles per iteration. None (default) computes as 2 * n_dim. |
+| `ess_ratio` | float | 2.0 | Target ESS ratio (ESS / n_particles). Target ESS = ess_ratio * n_particles. |
+| `volume_variation` | Optional[float] | None | Target coefficient of variation for volume. None for ESS-only mode. |
 | `vectorize` | bool | False | Vectorized likelihood evaluation |
 | `pool` | Pool/int | None | Parallelization pool |
 | `clustering` | bool | True | Enable hierarchical clustering |

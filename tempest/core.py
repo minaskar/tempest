@@ -10,7 +10,6 @@ from .config import (
     TRIM_ESS,
     TRIM_BINS,
     DOF_FALLBACK,
-    BOOST_STEEPNESS,
 )
 from .state_manager import StateManager
 
@@ -39,14 +38,11 @@ class SamplerCore:
         self.reweighter = Reweighter(
             state=self.state,
             pbar=None,  # Will be set in run_sampling
-            n_effective=config.n_effective,
-            n_active=config.n_active,
+            n_particles=config.n_particles,
+            ess_ratio=config.ess_ratio,
+            volume_variation=config.volume_variation,
             ESS_TOLERANCE=ESS_TOLERANCE,  # From centralized config
             BETA_TOLERANCE=BETA_TOLERANCE,  # From centralized config
-            n_boost=config.n_boost,
-            n_effective_init=config.n_effective,
-            n_active_init=config.n_active,
-            BOOST_STEEPNESS=BOOST_STEEPNESS,  # From centralized config
         )
 
         # Initialize clusterer if clustering is enabled
@@ -79,27 +75,7 @@ class SamplerCore:
 
         self.resampler = Resampler(
             state=self.state,
-            n_active_fn=lambda: self.reweighter.n_active,
-            resample=config.resample,
-            clusterer=clusterer,  # Pass same clusterer instance
-            clustering=config.clustering,
-            have_blobs=config.blobs_dtype is not None,
-        )
-
-        self.trainer = Trainer(
-            state=self.state,
-            pbar=None,
-            clusterer=clusterer,  # Pass initialized clusterer
-            cluster_every=config.cluster_every,
-            clustering=config.clustering,
-            TRIM_ESS=TRIM_ESS,
-            TRIM_BINS=TRIM_BINS,
-            DOF_FALLBACK=DOF_FALLBACK,  # Standardized value
-        )
-
-        self.resampler = Resampler(
-            state=self.state,
-            n_active_fn=lambda: self.reweighter.n_active,
+            n_particles=config.n_particles,
             resample=config.resample,
             clusterer=clusterer,  # Pass same clusterer instance
             clustering=config.clustering,
@@ -111,7 +87,7 @@ class SamplerCore:
             prior_transform=config.prior_transform,
             log_likelihood=self._log_like,
             pbar=None,
-            n_active_fn=lambda: self.reweighter.n_active,
+            n_particles=config.n_particles,
             n_dim=config.n_dim,
             n_steps=config.n_steps,
             n_max_steps=config.n_max_steps,
@@ -414,7 +390,7 @@ class SamplerCore:
                 dict(
                     beta=0.0,
                     calls=0,
-                    ESS=self.config.n_effective,
+                    ESS=int(self.config.ess_ratio * self.config.n_particles),
                     logZ=0.0,
                     logL=0.0,
                     acc=0.0,

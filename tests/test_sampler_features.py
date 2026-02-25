@@ -30,8 +30,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_gaussian,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             sample="tpcn",
             clustering=False,
             random_state=0,
@@ -47,8 +46,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_gaussian,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             sample="rwm",
             n_steps=1,  # Shorter steps for RWM
             clustering=False,
@@ -65,64 +63,6 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             # RWM might not be fully supported yet, skip if it fails
             self.skipTest(f"RWM sampler not fully supported: {e}")
 
-    def test_n_boost(self):
-        """Test n_boost parameter."""
-        n_dim = 2
-        sampler = Sampler(
-            prior_transform=self.prior_transform_gaussian,
-            log_likelihood=self.log_likelihood_gaussian,
-            n_dim=n_dim,
-            vectorize=True,
-            n_effective=64,
-            n_active=32,
-            n_boost=128,
-            clustering=False,
-            random_state=0,
-        )
-        self.assertEqual(sampler.n_boost, 128)
-        sampler.run(n_total=128)
-
-        # Check that n_effective increased towards n_boost
-        self.assertGreaterEqual(sampler.n_effective, 64)
-        self.assertLessEqual(sampler.n_effective, 128)
-
-    def test_n_boost_error(self):
-        """Test that n_boost < n_effective raises an error."""
-        n_dim = 2
-        with self.assertRaises(ValueError):
-            _ = Sampler(
-                prior_transform=self.prior_transform_gaussian,
-                log_likelihood=self.log_likelihood_gaussian,
-                n_dim=n_dim,
-                vectorize=True,
-                n_effective=128,
-                n_active=64,
-                n_boost=64,
-                clustering=False,
-                random_state=0,
-            )
-
-    def test_n_boost_none(self):
-        """Test that n_boost=None results in no boosting."""
-        n_dim = 2
-        sampler = Sampler(
-            prior_transform=self.prior_transform_gaussian,
-            log_likelihood=self.log_likelihood_gaussian,
-            n_dim=n_dim,
-            vectorize=True,
-            n_effective=64,
-            n_active=32,
-            n_boost=None,
-            clustering=False,
-            random_state=0,
-        )
-        self.assertIsNone(sampler.n_boost)
-        initial_n_effective = sampler.n_effective
-        sampler.run(n_total=128)
-
-        # Check that n_effective did not change from initial
-        self.assertEqual(sampler.n_effective, initial_n_effective)
-
     def test_posterior_method(self):
         """Test that posterior() method returns correct shapes."""
         n_dim = 2
@@ -131,8 +71,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_gaussian,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -153,8 +92,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_gaussian,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -177,8 +115,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_gaussian,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             resample="syst",
             clustering=False,
             random_state=0,
@@ -194,8 +131,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_gaussian,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             resample="mult",
             clustering=False,
             random_state=0,
@@ -211,8 +147,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_gaussian,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -228,13 +163,11 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_gaussian,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             n_steps=n_steps,
             clustering=False,
             random_state=0,
         )
-        self.assertEqual(sampler.n_steps, n_steps)
         sampler.run(n_total=128)
 
     def test_custom_output_dir(self):
@@ -250,8 +183,7 @@ class SamplerFeaturesTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_gaussian,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             output_dir=output_dir,
             clustering=False,
             random_state=0,

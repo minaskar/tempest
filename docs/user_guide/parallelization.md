@@ -87,21 +87,21 @@ sampler = tp.Sampler(
 
 ### Optimal Number of Processes
 
-- Set `n_active` as a multiple of the number of processes for efficient load balancing
+- Set `n_particles` as a multiple of the number of processes for efficient load balancing
 - Generally, use the number of physical cores (not hyperthreads)
 
 ```python
 import os
 
 n_cores = os.cpu_count() // 2  # Physical cores
-n_active = n_cores * 32  # 32 particles per core
+n_particles = n_cores * 32  # 32 particles per core
 
 sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
     pool=n_cores,
-    n_active=n_active,
+    n_particles=n_particles,
 )
 ```
 
@@ -175,7 +175,7 @@ if pool.is_master():
         log_likelihood=log_likelihood,
         n_dim=n_dim,
         pool=pool,
-        n_active=256,
+        n_particles=256,
     )
     
     sampler.run(n_total=4096)
@@ -196,7 +196,7 @@ mpiexec -n 16 python mpi_example.py
 
 !!! tip "Worker Scaling"
     - MPI uses N-1 workers (one process is the master)
-    - Set `n_active` divisible by the number of workers
+    - Set `n_particles` divisible by the number of workers
 
 !!! info "About ezmpi"
     Tempest delegates MPI parallelization to the [ezmpi](https://github.com/minaskar/ezmpi) package. Install it with `pip install ezmpi`.
@@ -322,29 +322,25 @@ def log_likelihood_timed(x):
 | 1-100 ms | Multiprocessing or vectorization |
 | > 100 ms | MPI for clusters |
 
-### Efficient n_active Selection (Optional)
+### Efficient n_particles Selection (Optional)
 
-When using parallelization (`pool > 1`), you can optimize load balancing by setting `n_active` manually:
+When using parallelization (`pool > 1`), you can optimize load balancing by setting `n_particles` to be divisible by the number of processes:
 
 ```python
-# For p processes, choose n_active = k * p close to n_effective // 2
-# Target: 40-60% of n_effective for optimal performance
+# For p processes, choose n_particles as a multiple of p
 n_processes = 8
-n_effective = 512
-target_n_active = n_effective // 2  # 256
 
-# Choose n_active as multiple of n_processes close to target
+# Choose n_particles as multiple of n_processes
 # Options: 256 (32 per CPU), 240 (30 per CPU), 224 (28 per CPU), etc.
-n_active = 256  # 256 is evenly divisible by 8
+n_particles = 256  # 256 is evenly divisible by 8
 
 sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
     pool=n_processes,
-    n_effective=n_effective,
-    n_active=n_active,  # Optional: for optimal load balancing
+    n_particles=n_particles,
 )
 ```
 
-**Note**: This is optional. If you don't specify `n_active`, it defaults to `n_effective // 2` (256 in this case), which works well but may not provide perfect load balancing.
+**Note**: This is optional. If you don't specify `n_particles`, it defaults to `2 * n_dim`, which works well for most cases.

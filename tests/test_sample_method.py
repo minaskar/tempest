@@ -49,8 +49,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -63,8 +62,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -103,8 +101,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -113,10 +110,10 @@ class SampleMethodTestCase(unittest.TestCase):
         state = sampler.sample()
 
         # Check array shapes
-        self.assertEqual(state["u"].shape, (sampler.n_active, self.n_dim))
-        self.assertEqual(state["x"].shape, (sampler.n_active, self.n_dim))
-        self.assertEqual(state["logl"].shape, (sampler.n_active,))
-        self.assertEqual(state["assignments"].shape, (sampler.n_active,))
+        self.assertEqual(state["u"].shape, (sampler.n_particles, self.n_dim))
+        self.assertEqual(state["x"].shape, (sampler.n_particles, self.n_dim))
+        self.assertEqual(state["logl"].shape, (sampler.n_particles,))
+        self.assertEqual(state["assignments"].shape, (sampler.n_particles,))
 
         # Check scalar values
         self.assertIsInstance(state["iter"], (int, np.integer))
@@ -131,8 +128,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -155,8 +151,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -176,8 +171,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -197,8 +191,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -219,8 +212,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=42,
         )
@@ -240,8 +232,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=True,
             n_max_clusters=5,  # Specify n_max_clusters to avoid None error
             random_state=0,
@@ -252,7 +243,7 @@ class SampleMethodTestCase(unittest.TestCase):
 
         # Should have cluster assignments
         self.assertIsNotNone(state["assignments"])
-        self.assertEqual(len(state["assignments"]), sampler.n_active)
+        self.assertEqual(len(state["assignments"]), sampler.n_particles)
 
     def test_sample_with_vectorized_likelihood(self):
         """Test that sample() works with vectorized likelihood."""
@@ -261,8 +252,7 @@ class SampleMethodTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_vectorized,
             n_dim=self.n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -272,7 +262,7 @@ class SampleMethodTestCase(unittest.TestCase):
 
         # Check that state is valid
         self.assertIsInstance(state, dict)
-        self.assertEqual(state["x"].shape, (sampler.n_active, self.n_dim))
+        self.assertEqual(state["x"].shape, (sampler.n_particles, self.n_dim))
 
     def test_sample_with_blobs(self):
         """Test that sample() correctly handles blobs."""
@@ -281,8 +271,7 @@ class SampleMethodTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_with_blobs,
             n_dim=self.n_dim,
             blobs_dtype=[("chi2", float)],
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -292,7 +281,7 @@ class SampleMethodTestCase(unittest.TestCase):
 
         # Blobs should be present and have correct shape
         self.assertIsNotNone(state["blobs"])
-        self.assertEqual(len(state["blobs"]), sampler.n_active)
+        self.assertEqual(len(state["blobs"]), sampler.n_particles)
 
     def test_sample_with_blobs_none_when_no_blobs(self):
         """Test that blobs is None when likelihood doesn't return blobs."""
@@ -300,8 +289,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -318,8 +306,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             output_dir=self.temp_dir,
             output_label="test",
@@ -333,26 +320,9 @@ class SampleMethodTestCase(unittest.TestCase):
         t0 = sampler.state.get_current("iter")
 
         # Call sample with save_every=1
-        # First call will increment iter from t0 to t0+1
-        # The condition is: (iter - t0) % save_every == 0 and iter != t0
-        # So (t0+1 - t0) % 1 == 0 (True) and t0+1 != t0 (True)
-        # Therefore the file should be saved
         sampler.sample(save_every=1, t0=t0)
 
-        # The file should be saved at iteration t0+1 (which equals t0 from before the sample call + 1)
-        expected_file = Path(self.temp_dir) / f"test_{t0}.state"
-
-        # Since the file is saved BEFORE the iteration is incremented in _reweight,
-        # we need to check for the file with the current iter value
-        # Actually, looking at the code, the file is saved at the START of sample()
-        # before _reweight increments iter. So it checks (self.iter - t0).
-        # When sample() is called, self.iter is still t0 from before,
-        # so (t0 - t0) % 1 == 0 but t0 == t0, so it won't save.
-        # After _reweight, self.iter becomes t0+1.
-        # On the NEXT call to sample(), it will check (t0+1 - t0) % 1 == 0 and t0+1 != t0,
-        # so it WILL save with filename test_{t0+1}.state
-
-        # Let's call sample() again to trigger the save
+        # Call sample again to trigger save
         sampler.sample(save_every=1, t0=t0)
 
         # Now check for the file with iter = t0+1
@@ -367,8 +337,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -401,8 +370,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -422,8 +390,7 @@ class SampleMethodTestCase(unittest.TestCase):
                     prior_transform=self.prior_transform,
                     log_likelihood=self.log_likelihood_single,
                     n_dim=self.n_dim,
-                    n_effective=64,
-                    n_active=32,
+                    n_particles=32,
                     resample=resample,
                     clustering=False,
                     random_state=0,
@@ -443,8 +410,7 @@ class SampleMethodTestCase(unittest.TestCase):
                     prior_transform=self.prior_transform,
                     log_likelihood=self.log_likelihood_single,
                     n_dim=self.n_dim,
-                    n_effective=64,
-                    n_active=32,
+                    n_particles=32,
                     sample=sampler_type,
                     clustering=False,
                     random_state=0,
@@ -462,8 +428,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -490,8 +455,7 @@ class SampleMethodTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=self.n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )

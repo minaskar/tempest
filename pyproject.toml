@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tempest-sampler"
-version = "0.1.5"
+version = "0.2.0"
 authors = [
     {name = "Minas Karamanis", email = "minaskar@gmail.com"},
 ]
@@ -28,6 +28,7 @@ dependencies = [
     "multiprocess>=0.70.15",
     "matplotlib>=3.7.5",
     "corner>=2.2.1",
+    "ipykernel>=6.29.5",
 ]
 
 [project.urls]

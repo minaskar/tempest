@@ -29,11 +29,11 @@ class ReweighterTestCase(unittest.TestCase):
         reweighter = Reweighter(
             state=self.state,
             pbar=self.pbar,
-            n_effective=512,
-            n_active=256,
+            n_particles=256,
+            ess_ratio=2.0,
         )
-        self.assertEqual(reweighter.n_effective, 512)
-        self.assertEqual(reweighter.n_active, 256)
+        self.assertEqual(reweighter.n_particles, 256)
+        self.assertEqual(reweighter.ess_ratio, 2.0)
         self.assertIsNotNone(reweighter.state)
 
     def test_first_iteration(self):
@@ -41,8 +41,8 @@ class ReweighterTestCase(unittest.TestCase):
         reweighter = Reweighter(
             state=self.state,
             pbar=self.pbar,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
+            ess_ratio=2.0,
         )
 
         weights = reweighter.run()
@@ -61,8 +61,8 @@ class ReweighterTestCase(unittest.TestCase):
         reweighter = Reweighter(
             state=self.state,
             pbar=None,
-            n_effective=16,
-            n_active=16,
+            n_particles=16,
+            ess_ratio=1.0,
         )
 
         # First iteration - create particles with varying likelihoods
@@ -96,36 +96,6 @@ class ReweighterTestCase(unittest.TestCase):
         # Weights are computed for all historical particles
         self.assertGreater(len(weights2), 0)
         np.testing.assert_allclose(np.sum(weights2), 1.0)
-
-    def test_boosting(self):
-        """Test boosting increases n_effective and n_active toward posterior."""
-        reweighter = Reweighter(
-            state=self.state,
-            pbar=None,
-            n_effective=32,
-            n_active=16,
-            n_boost=128,
-            n_effective_init=32,
-            n_active_init=16,
-            BOOST_STEEPNESS=2.0,
-        )
-
-        # Add history
-        u = np.random.rand(16, self.n_dim)
-        x = u * 2 - 1
-        logl = -0.5 * np.sum(x**2, axis=1)
-        self.state.update_current({"u": u, "x": x, "logl": logl})
-        self.state.commit_current_to_history()
-
-        initial_n_effective = reweighter.n_effective  # noqa: F841
-        initial_n_active = reweighter.n_active  # noqa: F841
-
-        reweighter.run()
-
-        # Boosting may have increased n_effective/n_active
-        # (depends on posterior ESS, so just check they're capped)
-        self.assertLessEqual(reweighter.n_effective, 128)
-        self.assertLessEqual(reweighter.n_active, 64)
 
 
 class TrainerTestCase(unittest.TestCase):
@@ -250,13 +220,9 @@ class ResamplerTestCase(unittest.TestCase):
 
     def test_init(self):
         """Test Resampler initialization."""
-
-        def n_active_fn():
-            return 32
-
         resampler = Resampler(
             state=self.state,
-            n_active_fn=n_active_fn,
+            n_particles=32,
             resample="syst",
             clusterer=self.clusterer,
             clustering=True,
@@ -269,12 +235,9 @@ class ResamplerTestCase(unittest.TestCase):
         """Test Resampler skips at beta=0."""
         n_active = 16
 
-        def n_active_fn():
-            return n_active
-
         resampler = Resampler(
             state=self.state,
-            n_active_fn=n_active_fn,
+            n_particles=n_active,
             clustering=False,
         )
 
@@ -292,12 +255,9 @@ class ResamplerTestCase(unittest.TestCase):
         """Test systematic resampling."""
         n_active = 16
 
-        def n_active_fn():
-            return n_active
-
         resampler = Resampler(
             state=self.state,
-            n_active_fn=n_active_fn,
+            n_particles=n_active,
             resample="syst",
             clustering=False,
         )
@@ -329,12 +289,9 @@ class ResamplerTestCase(unittest.TestCase):
         np.random.seed(42)
         n_active = 16
 
-        def n_active_fn():
-            return n_active
-
         resampler = Resampler(
             state=self.state,
-            n_active_fn=n_active_fn,
+            n_particles=n_active,
             resample="mult",
             clustering=False,
         )
@@ -360,12 +317,9 @@ class ResamplerTestCase(unittest.TestCase):
         """Test cluster assignment during resampling."""
         n_active = 16
 
-        def n_active_fn():
-            return n_active
-
         resampler = Resampler(
             state=self.state,
-            n_active_fn=n_active_fn,
+            n_particles=n_active,
             resample="syst",
             clusterer=self.clusterer,
             clustering=True,
@@ -395,12 +349,9 @@ class ResamplerTestCase(unittest.TestCase):
         """Test resampling with auxiliary blobs data."""
         n_active = 8
 
-        def n_active_fn():
-            return n_active
-
         resampler = Resampler(
             state=self.state,
-            n_active_fn=n_active_fn,
+            n_particles=n_active,
             resample="syst",
             clustering=False,
             have_blobs=True,
@@ -448,16 +399,12 @@ class MutatorTestCase(unittest.TestCase):
 
     def test_init(self):
         """Test Mutator initialization."""
-
-        def n_active_fn():
-            return 32
-
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             pbar=self.pbar,
-            n_active_fn=n_active_fn,
+            n_particles=32,
             n_dim=self.n_dim,
             n_steps=10,
             sampler="tpcn",
@@ -471,15 +418,12 @@ class MutatorTestCase(unittest.TestCase):
         np.random.seed(42)
         n_active = 16
 
-        def n_active_fn():
-            return n_active
-
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             pbar=None,
-            n_active_fn=n_active_fn,
+            n_particles=n_active,
             n_dim=self.n_dim,
         )
 
@@ -521,15 +465,12 @@ class MutatorTestCase(unittest.TestCase):
             logl[::2] = np.inf
             return logl, None
 
-        def n_active_fn():
-            return n_active
-
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,
             log_likelihood=log_likelihood_with_inf,
             pbar=None,
-            n_active_fn=n_active_fn,
+            n_particles=n_active,
             n_dim=self.n_dim,
         )
 
@@ -560,15 +501,12 @@ class MutatorTestCase(unittest.TestCase):
         """Test Mutator calls parallel_mcmc at beta>0."""
         n_active = 8
 
-        def n_active_fn():
-            return n_active
-
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             pbar=self.pbar,
-            n_active_fn=n_active_fn,
+            n_particles=n_active,
             n_dim=self.n_dim,
             n_steps=10,
             sampler="tpcn",
@@ -632,15 +570,12 @@ class MutatorTestCase(unittest.TestCase):
             blobs = np.random.rand(len(logl), 2)  # 2 blob features
             return logl, blobs
 
-        def n_active_fn():
-            return n_active
-
         mutator = Mutator(
             state=self.state,
             prior_transform=self.prior_transform,
             log_likelihood=log_likelihood_with_blobs,
             pbar=None,
-            n_active_fn=n_active_fn,
+            n_particles=n_active,
             n_dim=self.n_dim,
             have_blobs=True,
         )

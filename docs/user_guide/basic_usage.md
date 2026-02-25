@@ -34,9 +34,8 @@ sampler = tp.Sampler(
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `n_effective` | 512 | Target effective sample size - controls resolution and variance |
-| `n_active` | None | Number of active particles per iteration. When None (default), automatically set to n_effective // 2. For parallelization, manually set to integer multiple of CPU count close to n_effective // 2 (40-60% of n_effective). |
-| `n_boost` | `None` | Target number of effective particles to boost towards (absolute value, not a multiplier) |
+| `n_particles` | 2*n_dim | Number of particles per iteration |
+| `ess_ratio` | 2.0 | Target ESS ratio - ESS target is ess_ratio * n_particles |
 | `vectorize` | False | Whether likelihood accepts batched inputs |
 | `pool` | None | Process pool for parallelization |
 
@@ -202,23 +201,7 @@ sampler = tp.Sampler(
 
 ---
 
-## ESS Metrics
 
-Control how the sampler determines temperature steps:
-
-```python
-sampler = tp.Sampler(
-    prior_transform=prior_transform,
-    log_likelihood=log_likelihood,
-    n_dim=n_dim,
-    metric='ess',  # Effective Sample Size (default)
-    # metric='uss',  # Unique Sample Size
-)
-```
-
-The `'uss'` metric can be more robust for multimodal distributions.
-
----
 
 ## Clustering
 
@@ -281,15 +264,14 @@ def log_likelihood(x):
 sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
-    n_effective=1024,  # More particles for higher accuracy
-    n_boost=2048,
+    n_particles=1024,  # More particles for higher accuracy
+
     vectorize=False,
     sample='tpcn',
     n_steps=n_dim,
     n_max_steps=10 * n_dim,
     clustering=True,
     normalize=True,
-    metric='ess',
     resample='mult',
     output_dir='results',
     output_label='gaussian',
@@ -313,63 +295,3 @@ logz, logz_err = sampler.evidence()
 - **Scale up**: Explore [Parallelization](parallelization.md) for large problems
 - **See examples**: Check out [Rosenbrock](../examples/rosenbrock.md) and other examples
 - **Fine-tune**: See [Advanced Features](advanced.md) for optimization tips
-
-State files will be saved as `my_results/analysis_1_*.state`.
-
----
-
-## Reproducibility
-
-Set a random seed for reproducible results:
-
-```python
-sampler = tp.Sampler(
-    prior_transform=prior_transform,
-    log_likelihood=log_likelihood,
-    n_dim=n_dim,
-    random_state=42,
-)
-```
-
----
-
-## Example: Full Configuration
-
-```python
-import numpy as np
-import tempest as tp
-
-n_dim = 10
-
-def prior_transform(u):
-    return 20 * u - 10
-
-def log_likelihood(x):
-    return -0.5 * np.sum(x**2)
-
-# Configure everything
-sampler = tp.Sampler(
-    prior_transform=prior_transform,
-    log_likelihood=log_likelihood,
-    n_effective=1024,  # More particles for higher accuracy
-    n_boost=2048,
-    vectorize=False,
-    sample='tpcn',
-    n_steps=n_dim,
-    n_max_steps=10 * n_dim,
-    clustering=True,
-    normalize=True,
-    metric='ess',
-    resample='mult',
-    output_dir='results',
-    output_label='gaussian',
-    random_state=42,
-)
-
-# Run with checkpointing
-sampler.run(n_total=8192, save_every=20, progress=True)
-
-# Get results
-samples, weights, logl = sampler.posterior()
-logz, logz_err = sampler.evidence()
-```

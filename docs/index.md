@@ -64,7 +64,7 @@ sampler = tp.Sampler(
 sampler.run()
 
 # Get weighted posterior samples
-samples, weights, logl, logp = sampler.posterior()
+samples, weights, logl = sampler.posterior()
 
 # Get Bayesian evidence estimate
 logz, logz_err = sampler.evidence()

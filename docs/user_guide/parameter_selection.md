@@ -2,7 +2,7 @@
 
 This guide explains Tempest's parameters and provides heuristics for choosing them effectively.
 
-**For most users, you only need to worry about TWO parameters: `n_effective` and `n_steps`. All other parameters can (and should) be left at their default values for 99% of problems.**
+**For most users, you only need to worry about TWO parameters: `n_particles` and `n_steps`. All other parameters can (and should) be left at their default values for 99% of problems.**
 
 If you're just getting started or have a standard inference problem, focus on this guide. For advanced features and more control, see the [Advanced Parameter Guide](parameter_selection_advanced.md).
 
@@ -10,19 +10,19 @@ If you're just getting started or have a standard inference problem, focus on th
 
 ### Three Fundamental Rules
 
-1. **Increasing `n_effective` reduces variance in the results**
+1. **Increasing `n_particles` reduces variance in the results**
    - Higher values capture more features but cost more computation
 
 2. **Increasing `n_steps` reduces bias in the results**
    - More steps give better exploration but cost more computation
 
-3. **Total computational cost scales linearly with `n_effective` and `n_steps`**
+3. **Total computational cost scales linearly with `n_particles` and `n_steps`**
    - Doubling either parameter approximately doubles runtime
 
 ### The Two Most Important Parameters
 
 Remember:
-1. **`n_effective`**: Controls variance and resolution (scales with complexity)
+1. **`n_particles`**: Controls variance and resolution (scales with complexity)
 2. **`n_steps`**: Controls bias and exploration (increase if biased)
 
 Most issues can be solved by adjusting these two parameters.
@@ -31,15 +31,17 @@ Most issues can be solved by adjusting these two parameters.
 
 ## Core Parameters Everyone Should Know
 
-### `n_effective` (target effective sample size) [MOST IMPORTANT]
+### `n_particles` (number of particles) [MOST IMPORTANT]
 
-**Purpose**: Determines the resolution capabilities of the sampler. Controls how many independent samples you aim to obtain. This is one of the two most important parameters.
+**Purpose**: Determines the resolution capabilities of the sampler. Controls how many particles are used per iteration. This is one of the two most important parameters.
 
 **Why it matters**: Higher values better capture non-Gaussian features, multimodality, and high-dimensional structure. It directly affects result quality and variance.
 
+**Default**: Automatically set to `2 * n_dim` if not specified.
+
 **Scaling heuristics**:
 - Low-dim (2-4D): 256-512
-- Medium-dim (5-15D): 512-1024
+- Medium-dim (5-15D): 512-1024  
 - High-dim (20D+): 1024-2048 or more (scales roughly with D² - dimensionality squared)
 - Complex posteriors (multimodal, skewed): Use upper end of range or higher
 
@@ -80,18 +82,18 @@ Most issues can be solved by adjusting these two parameters.
 
 ## Quick Start by Problem Type
 
-| Problem Type | n_effective | n_steps | Notes |
+| Problem Type | n_particles | n_steps | Notes |
 |-------------|-------------|---------|-------|
 | **Simple, low-dim (2-4D)** | 256-512 | 5 | Standard defaults work well |
 | **Medium-dim (5-15D)** | 512-1024 | 5 | Most common case |
 | **High-dim (20D+)** | 1024-2048+ | 5-10 | Start with 5, increase if needed |
 | **Multimodal** | 1024+ | 5-10 | May need more sampling |
-| **Posterior-only** | 256-512 | 5 | Consider n_boost (see Advanced) |
-| **With evidence** | 512-1024 | 5 | No n_boost (see Advanced) |
+| **Posterior-only** | 256-512 | 5 | Standard defaults work well |
+| **With evidence** | 512-1024 | 5 | Standard defaults work well |
 | **Expensive likelihood** | Lower end | 5 | Use pool=4-8 for parallelization |
 | **Cheap likelihood** | Higher | 5 | May help with speed |
 
-**Starting point for most problems**: `n_effective=512`, `n_steps=5` (the defaults)
+**Starting point for most problems**: `n_particles=512`, `n_steps=5`
 
 ---
 
@@ -100,14 +102,14 @@ Most issues can be solved by adjusting these two parameters.
 For publication-quality or critical results, always verify convergence:
 
 **Method**: Run two independent samplers with different settings:
-- **Run 1**: Standard settings (`n_effective=512`, `n_steps=5`)
-- **Run 2**: More conservative settings (`n_effective=1024`, `n_steps=10`)
+- **Run 1**: Standard settings (`n_particles=512`, `n_steps=5`)
+- **Run 2**: More conservative settings (`n_particles=1024`, `n_steps=10`)
 
 **Verification**: Compare the resulting posteriors:
 - If they match closely: Results are converged and reliable
 - If they differ significantly: Neither has converged, increase both parameters further
 
-**Rule**: When in doubt, run with doubled `n_effective` and `n_steps` and verify they give consistent results.
+**Rule**: When in doubt, run with doubled `n_particles` and `n_steps` and verify they give consistent results.
 
 ---
 
@@ -115,8 +117,8 @@ For publication-quality or critical results, always verify convergence:
 
 ### Problem: Results vary between runs
 - **Symptom**: Each time you run, you get different posterior estimates
-- **Solution**: Increase `n_effective` to reduce variance
-- **Try**: Double `n_effective` (e.g., from 512 to 1024)
+- **Solution**: Increase `n_particles` to reduce variance
+- **Try**: Double `n_particles` (e.g., from 512 to 1024)
 
 ### Problem: Posterior looks too constrained or biased
 - **Symptom**: The posterior seems narrower than expected, or traces show poor mixing
@@ -125,8 +127,8 @@ For publication-quality or critical results, always verify convergence:
 
 ### Problem: Slow runtime
 - **Symptom**: Sampling takes too long
-- **Solution**: If results look converged, reduce `n_effective` or use parallelization with `pool=4-8`
-- **Try**: Temporarily reduce `n_effective` to 256 for testing
+- **Solution**: If results look converged, reduce `n_particles` or use parallelization with `pool=4-8`
+- **Try**: Temporarily reduce `n_particles` to 256 for testing
 
 ### Problem: Unsure if converged
 - **Solution**: Run two independent samplers with different random seeds and compare
@@ -137,16 +139,15 @@ For publication-quality or critical results, always verify convergence:
 
 ## When to Use Advanced Parameters
 
-**The standard parameters above (n_effective and n_steps) are sufficient for 99% of problems.**
+**The standard parameters above (n_particles and n_steps) are sufficient for 99% of problems.**
 
 You **only** need the [Advanced Parameter Guide](parameter_selection_advanced.md) if:
 
 1. You're optimizing for extreme performance (expensive likelihood evaluations)
 2. You need parallelization with specific CPU configurations
-3. You're doing posterior-only analysis with `n_boost`
-4. You're dealing with special boundary conditions (periodic or reflective)
-5. You want to experiment with clustering control
-6. You suspect very specific technical issues
+3. You're dealing with special boundary conditions (periodic or reflective)
+4. You want to experiment with clustering control
+5. You suspect very specific technical issues
 
 **Rule**: Always try standard parameters first. Only explore advanced settings after you've ruled out parameter tuning issues.
 
@@ -156,7 +157,7 @@ You **only** need the [Advanced Parameter Guide](parameter_selection_advanced.md
 
 | Parameter | Default | When to Increase | When to Decrease | Critical? |
 |-----------|---------|------------------|------------------|-----------|
-| `n_effective` | 512 | High dimension, complex, variance issues | Testing only | **Yes** |
+| `n_particles` | 2*n_dim | High dimension, complex, variance issues | Testing only | **Yes** |
 | `n_steps` | 5 (per dim) | Bias, poor mixing, efficiency < 0.1 | Testing, speed | **Yes** |
 
 For other parameters, see the [Advanced Parameter Guide](parameter_selection_advanced.md).
@@ -166,7 +167,7 @@ For other parameters, see the [Advanced Parameter Guide](parameter_selection_adv
 ## That's It!
 
 Most users will never need more than what's in this guide. Start with the defaults:
-- `n_effective=512`
+- `n_particles=512`
 - `n_steps=5`
 
 Adjust only if needed based on the guidance above. For more control and advanced features, see the [Advanced Parameter Guide](parameter_selection_advanced.md).

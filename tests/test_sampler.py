@@ -28,8 +28,7 @@ class SamplerTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -43,8 +42,7 @@ class SamplerTestCase(unittest.TestCase):
             log_likelihood=self.log_likelihood_vectorized,
             n_dim=n_dim,
             vectorize=True,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )
@@ -59,8 +57,7 @@ class SamplerTestCase(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood_single,
             n_dim=n_dim,
-            n_effective=64,
-            n_active=32,
+            n_particles=32,
             clustering=False,
             random_state=0,
         )

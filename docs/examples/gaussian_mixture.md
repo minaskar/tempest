@@ -63,8 +63,7 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
-    n_effective=512,
-    n_active=256,
+    n_particles=512,
     clustering=True,  # Important for multimodal!
     vectorize=True,
     random_state=42,
@@ -177,8 +176,7 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
-    n_effective=1024,
-    n_active=512,
+    n_particles=1024,
     clustering=True,
     vectorize=True,
 )
@@ -232,8 +230,7 @@ sampler = tp.Sampler(
     prior_transform=prior_transform,
     log_likelihood=log_likelihood,
     n_dim=n_dim,
-    n_effective=2048,
-    n_active=512,
+    n_particles=2048,
     clustering=True,
     n_boost=1024,
 )
@@ -247,8 +244,8 @@ sampler.run(n_total=8192)
 
 !!! success "Key Settings"
     - **Always enable clustering** (`clustering=True`)
-    - Increase `n_effective` with number of modes
-    - Use `n_boost > n_effective` to add particles as modes are discovered
+    - Increase `n_particles` with number of modes
+    - Use `n_boost > n_particles` to add particles as modes are discovered
 
 !!! tip "Mode Discovery"
     - Wide priors help discover all modes
@@ -256,6 +253,5 @@ sampler.run(n_total=8192)
 
 !!! warning "Mode Collapse"
     If sampling collapses to one mode:
-    - Increase `n_effective` and `n_active`
     - Lower `split_threshold` to encourage more clusters
     - Check that prior covers all modes

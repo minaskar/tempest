@@ -4,7 +4,7 @@
 
 This guide covers advanced parameters for sophisticated sampling problems and power users. If you're just getting started with Tempest, you probably don't need to read this.
 
-**Most users should only adjust two parameters: `n_effective` and `n_steps`. All other parameters can be left at their default values for almost all problems.**
+**Most users should only adjust two parameters: `n_particles` and `n_steps`. All other parameters can be left at their default values for almost all problems.**
 
 If you've already tried standard parameters and need more control, or you're developing new sampling methods, this guide is for you.
 
@@ -16,33 +16,19 @@ If you've already tried standard parameters and need more control, or you're dev
 
 **Purpose**: Number of particles updated in each iteration. Controls iteration granularity.
 
-**Default**: Automatically computed as `n_effective // 2` (optimal for most problems). You typically don't need to set this parameter.
+**Default**: This parameter has been removed. Use `n_particles` directly instead.
 
-**When to set manually**: For parallelization with pool > 1. Set to an integer multiple of the number of CPUs that is close to `n_effective // 2` (between 40% and 60% of n_effective). Example: for 8 CPUs and n_effective=512, use n_active=256 (32 per CPU) or n_active=224 (28 per CPU).
-
-**Trade-off**: Lower values → more iterations but shorter; higher values → fewer iterations but longer. Must be less than `n_effective`.
+**Note**: The current API uses `n_particles` to control the number of particles. For parallelization, `n_particles` should be set to an integer multiple of the number of CPUs. Example: for 8 CPUs, use n_particles=256 (32 per CPU) or n_particles=224 (28 per CPU).
 
 ### `n_total` (total samples to collect)
 
-**Purpose**: Controls how many samples you get after reaching the posterior.
+**Purpose**: Controls how many samples you get after reaching the posterior. This is a parameter to `run()`, not `Sampler()`.
 
-**How it works**: When beta reaches 1, you typically have only `n_effective` samples from the tempered sequence. Sampling continues at beta=1 to collect more samples. This is what `n_total` controls.
+**How it works**: When beta reaches 1, sampling continues at beta=1 to collect more samples. This is what `n_total` controls.
 
 **Typical range**: 4000-10000 is more than enough for publication-quality plots, even for complex posteriors.
 
 **Rule**: Use 4096-8192 for most problems. Only increase if you need very smooth posterior estimates.
-
-### `n_boost` (dynamic particle boosting)
-
-**Purpose**: Focus computational budget where it matters by increasing particles near the posterior.
-
-**When to use**: When the prior is much wider than the posterior (common in practice). Start with low `n_effective`, boost near posterior.
-
-**Impact**: Makes a huge difference for wide priors. Controls cost during early iterations when likelihood evaluations are cheap but many particles are needed for exploration.
-
-**CRITICAL WARNING**: Do NOT use if you need evidence estimates (`logZ`). Only for posterior estimation.
-
-**Rule**: Set to 2-4× `n_effective` for posterior-only analysis with wide priors. Leave as `None` otherwise.
 
 ---
 
@@ -110,23 +96,7 @@ Handle multimodal distributions automatically.
 
 ---
 
-## Temperature Ladder Parameters
 
-Control how tempering progresses from prior to posterior.
-
-### `metric` (temperature step criterion)
-
-**Default**: `"ess"` (Effective Sample Size)
-
-**Options**:
-- `"ess"`: Effective Sample Size (recommended)
-- `"uss"`: Unique Sample Size (more conservative, rarely needed)
-
-**Why "ess"**: Works well in all cases. Determines temperature steps based on importance weight variance.
-
-**Rule**: Set to `"ess"` unless you have a specific reason to use `"uss"`.
-
----
 
 ## Boundary Conditions
 
@@ -260,10 +230,10 @@ The progress bar shows key diagnostics:
 - **Solution**: Increase `n_steps` (reduces bias)
 
 **Problem**: Slow progress, many iterations
-- **Solution**: Reduce `n_effective` (as long as it's large enough to capture posterior geometry), or enable `n_boost`
+- **Solution**: Reduce `n_particles` (as long as it's large enough to capture posterior geometry)
 
 **Problem**: Missing modes in multimodal posterior
-- **Solution**: Ensure `clustering=True`, increase `n_effective`, use wider priors
+- **Solution**: Ensure `clustering=True`, increase `n_particles`, use wider priors
 
 ---
 
@@ -272,14 +242,14 @@ The progress bar shows key diagnostics:
 For publication-quality or critical results, always verify convergence:
 
 **Method**: Run two independent samplers with different settings:
-- **Run 1**: Standard settings (`n_effective=512`, `n_steps=n_dim/2`)
-- **Run 2**: More conservative settings (`n_effective=1024`, `n_steps=n_dim`)
+- **Run 1**: Standard settings (`n_particles=512`, `n_steps=5`)
+- **Run 2**: More conservative settings (`n_particles=1024`, `n_steps=10`)
 
 **Verification**: Compare the resulting posteriors:
 - If they match closely: Results are converged and reliable
 - If they differ significantly: Neither has converged, increase both parameters further
 
-**Rule**: When in doubt, run with doubled `n_effective` and `n_steps` and verify they give consistent results.
+**Rule**: When in doubt, run with doubled `n_particles` and `n_steps` and verify they give consistent results.
 
 ---
 
@@ -287,7 +257,7 @@ For publication-quality or critical results, always verify convergence:
 
 If you find yourself overwhelmed by these advanced parameters, **go back to the standard Parameter Selection Guide**. For 99% of problems, you only need:
 
-- **`n_effective`**: Controls variance (scales with complexity)
+- **`n_particles`**: Controls variance (scales with complexity)
 - **`n_steps`**: Controls bias (increase if biased)
 
 Start simple, add complexity only when needed.

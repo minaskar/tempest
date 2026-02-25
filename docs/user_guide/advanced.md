@@ -2,24 +2,6 @@
 
 This guide covers advanced features of Tempest for complex sampling problems.
 
-## Boosting Particles
-
-Use `n_boost` to gradually increase particle count as sampling approaches the posterior:
-
-```python
-sampler = tp.Sampler(
-    prior_transform=prior_transform,
-    log_likelihood=log_likelihood,
-    n_dim=n_dim,
-    n_effective=512,
-    n_boost=2048,  # Target 2048 effective particles
-)
-```
-
-This starts with 512 effective particles and gradually increases to 2048 as sampling converges, balancing computational cost with accuracy. Set `n_boost=n_effective` to disable boosting, or `n_boost=None` to use the default behavior (no boosting).
-
----
-
 ## Clustering for Multimodal Distributions
 
 Tempest uses hierarchical Gaussian mixture clustering to handle multimodal distributions.
@@ -145,26 +127,6 @@ sampler = tp.Sampler(
 
 ---
 
-## Temperature Ladder Control
-
-### Metric Selection
-
-```python
-sampler = tp.Sampler(
-    prior_transform=prior_transform,
-    log_likelihood=log_likelihood,
-    n_dim=n_dim,
-    metric='ess',  # Effective Sample Size (default)
-    # metric='uss',  # Unique Sample Size
-)
-```
-
-The metric determines how temperature steps are chosen:
-- **ESS**: Based on importance weight variance
-- **USS**: Based on number of unique particles after resampling (more conservative)
-
----
-
 ## Handling Numerical Issues
 
 ### Likelihood Returns
@@ -252,7 +214,7 @@ The progress bar shows key diagnostics:
 
 | Symptom | Likely Cause | Solution |
 |---------|--------------|----------|
-| Very low ESS | Too few particles | Increase `n_effective` |
+| Very low ESS | Too few particles | Increase `n_particles` |
 | Beta stuck near 0 | Poor prior/likelihood ratio | Check prior bounds |
 | Low acceptance | Poor proposal | Enable clustering, check boundaries |
 | K=1 always | Unimodal or clustering disabled | Normal for simple problems |

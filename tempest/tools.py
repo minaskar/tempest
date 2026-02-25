@@ -1,7 +1,8 @@
-import numpy as np
 import math
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import numpy as np
 from tqdm import tqdm
-from typing import Tuple, Optional, Dict, Any, Callable, List
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -54,6 +55,68 @@ def trim_weights(
     return samples[mask], weights_trimmed
 
 
+def volume_variation(x, w=None):
+    """
+    Compute volume variation metric.
+
+    Metric that determines how well the samples capture the covariance structure
+    of the target distribution using influence function approach (no bootstrap).
+
+    Computes CV(sqrt(det(Cov))) using the influence function formula:
+    CV = (1/2) * sqrt(sum_i w_i^2 * (d_i^2 - n_dim)^2)
+    where d_i are Mahalanobis distances and w_i are normalized weights.
+
+    The sqrt(det(Cov)) represents the volume of the confidence ellipsoid,
+    so this metric measures the coefficient of variation of the ellipsoid volume.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Samples array with shape (n_samples, n_dim).
+    w : np.ndarray, optional
+        Weights array with shape (n_samples,). If None, assumes uniform weights.
+
+    Returns
+    -------
+    volume_variation : float
+        Coefficient of variation of sqrt(det(Cov)) (range [0, infinity))
+        where lower is better. With perfect coverage, volume_variation = 0.0.
+    """
+    x = np.asarray(x)
+    n_samples, n_dim = x.shape
+    if n_samples < n_dim + 1:
+        return 1e10  # Large finite value instead of np.inf
+
+    if w is None:
+        w = np.ones(n_samples)
+
+    w = np.asarray(w)
+    w = w / np.sum(w)
+
+    weighted_mean = np.sum(x * w[:, np.newaxis], axis=0)
+    xc = x - weighted_mean
+
+    cov = np.dot(xc.T, xc * w[:, np.newaxis])
+
+    if np.linalg.matrix_rank(cov) < n_dim:
+        # Add regularization to make covariance matrix invertible
+        reg = 1e-6 * np.trace(cov)
+        cov = cov + np.eye(n_dim) * reg
+
+    try:
+        cov_inv = np.linalg.inv(cov)
+    except np.linalg.LinAlgError:
+        # If inversion fails, return a large finite value instead of np.inf
+        return 1e10
+    d2 = np.sum(xc @ cov_inv * xc, axis=1)
+
+    # Clip to prevent overflow in early iterations when particles are far from center
+    deviation = np.clip(d2 - n_dim, -1e6, 1e6)
+    cv = 0.5 * np.sqrt(np.sum(w**2 * deviation**2))
+
+    return cv
+
+
 def effective_sample_size(weights: np.ndarray) -> float:
     """
         Compute effective sample size (ESS).
@@ -70,8 +133,6 @@ def effective_sample_size(weights: np.ndarray) -> float:
     """
     weights = weights / np.sum(weights)
     return 1.0 / np.sum(weights**2.0)
-
-
 
 
 def compute_ess(logw: np.ndarray):

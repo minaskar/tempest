@@ -24,8 +24,9 @@ class TestSamplerConfig(unittest.TestCase):
             n_dim=2,
         )
         self.assertEqual(config.n_dim, 2)
-        self.assertEqual(config.n_effective, 512)
-        self.assertEqual(config.n_active, 256)
+        self.assertEqual(config.n_particles, 4)  # 2 * n_dim
+        self.assertEqual(config.ess_ratio, 2.0)
+        self.assertIsNone(config.volume_variation)
 
     def test_defaults_set_correctly(self):
         """Test that computed defaults are set correctly."""
@@ -33,10 +34,10 @@ class TestSamplerConfig(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             n_dim=10,
-            n_effective=512,
+            n_particles=100,
         )
-        # n_active should default to n_effective // 2
-        self.assertEqual(config.n_active, 256)
+        # n_particles should be as specified
+        self.assertEqual(config.n_particles, 100)
         # n_steps should default to 1
         self.assertEqual(config.n_steps, 1)
         # n_max_steps should default to 20 * n_steps
@@ -46,81 +47,15 @@ class TestSamplerConfig(unittest.TestCase):
         # output_label should default to "ps"
         self.assertEqual(config.output_label, "ps")
 
-    def test_n_active_overrides_default(self):
-        """Test that explicitly set n_active is respected."""
+    def test_n_particles_override_default(self):
+        """Test that explicitly set n_particles is respected."""
         config = SamplerConfig(
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             n_dim=5,
-            n_effective=100,
-            n_active=30,
+            n_particles=50,
         )
-        self.assertEqual(config.n_active, 30)
-        # n_effective should not change
-        self.assertEqual(config.n_effective, 100)
-
-    def test_n_effective_computed_from_n_active(self):
-        """Test that n_effective defaults to 2*n_active when n_effective=None."""
-        config = SamplerConfig(
-            prior_transform=self.prior_transform,
-            log_likelihood=self.log_likelihood,
-            n_dim=5,
-            n_effective=None,  # Explicitly set to None to trigger computation
-            n_active=50,  # This should trigger n_effective = 2*n_active = 100
-        )
-        # n_active was explicitly set
-        self.assertEqual(config.n_active, 50)
-        # n_effective should be computed as 2*n_active = 100
-        self.assertEqual(config.n_effective, 100)
-
-    def test_n_boost_validation_valid(self):
-        """Test that valid n_boost passes validation."""
-        config = SamplerConfig(
-            prior_transform=self.prior_transform,
-            log_likelihood=self.log_likelihood,
-            n_dim=2,
-            n_effective=64,
-            n_active=32,
-            n_boost=128,
-        )
-        self.assertEqual(config.n_boost, 128)
-
-    def test_n_boost_validation_invalid_too_small(self):
-        """Test that n_boost < n_effective raises error."""
-        with self.assertRaises(ValueError) as cm:
-            SamplerConfig(
-                prior_transform=self.prior_transform,
-                log_likelihood=self.log_likelihood,
-                n_dim=2,
-                n_effective=64,
-                n_active=32,
-                n_boost=32,  # Too small
-            )
-        self.assertIn("n_boost (32) must be >= n_effective (64)", str(cm.exception))
-
-    def test_invalid_sampler_raises_error(self):
-        """Test that invalid sampler raises ValueError."""
-        with self.assertRaises(ValueError) as cm:
-            SamplerConfig(
-                prior_transform=self.prior_transform,
-                log_likelihood=self.log_likelihood,
-                n_dim=2,
-                sample="invalid",  # Invalid sampler
-            )
-        self.assertIn(
-            "Invalid sampler 'invalid': must be 'tpcn' or 'rwm'", str(cm.exception)
-        )
-
-    def test_no_metric_parameter_validation(self):
-        """Test that metric parameter is no longer supported."""
-        # metric parameter should not be valid anymore
-        with self.assertRaises(TypeError):
-            SamplerConfig(
-                prior_transform=self.prior_transform,
-                log_likelihood=self.log_likelihood,
-                n_dim=2,
-                metric="ess",  # This should raise TypeError
-            )
+        self.assertEqual(config.n_particles, 50)
 
     def test_invalid_resample_raises_error(self):
         """Test that invalid resample raises ValueError."""
@@ -223,16 +158,15 @@ class TestSamplerConfig(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             n_dim=2,
-            n_effective=512,
-            n_active=256,
+            n_particles=100,
         )
 
         # Try to modify (should fail)
         with self.assertRaises(AttributeError):
-            config.n_effective = 200
+            config.n_particles = 200
 
         # Original value should be unchanged
-        self.assertEqual(config.n_effective, 512)
+        self.assertEqual(config.n_particles, 100)
 
     def test_to_dict_serialization(self):
         """Test that to_dict produces valid serialization dict."""
@@ -240,98 +174,103 @@ class TestSamplerConfig(unittest.TestCase):
             prior_transform=self.prior_transform,
             log_likelihood=self.log_likelihood,
             n_dim=5,
-            n_effective=128,
-            n_active=64,
+            n_particles=64,
             clustering=True,
         )
+        d = config.to_dict()
+        self.assertEqual(d["n_dim"], 5)
+        self.assertEqual(d["n_particles"], 64)
+        self.assertIsNone(d["volume_variation"])
 
-    def test_n_active_less_than_n_effective(self):
-        """Test that n_active must be less than n_effective."""
+    def test_ess_ratio_validation(self):
+        """Test that invalid ess_ratio raises error."""
         with self.assertRaises(ValueError) as cm:
             SamplerConfig(
                 prior_transform=self.prior_transform,
                 log_likelihood=self.log_likelihood,
                 n_dim=2,
-                n_effective=100,
-                n_active=100,  # Equal, not less
+                ess_ratio=-1.0,  # Negative
             )
-        self.assertIn("must be < n_effective", str(cm.exception))
+        self.assertIn("ess_ratio must be positive", str(cm.exception))
 
-    def test_none_n_effective_computed(self):
-        """Test that n_effective=None triggers default computation."""
-        config = SamplerConfig(
-            prior_transform=self.prior_transform,
-            log_likelihood=self.log_likelihood,
-            n_dim=5,
-            n_effective=None,
-            n_active=30,  # This should be kept
-        )
-        # n_effective should be computed as 2*n_active = 60
-        self.assertEqual(config.n_effective, 60)
-        self.assertEqual(config.n_active, 30)
+    def test_volume_variation_validation(self):
+        """Test that invalid volume_variation raises error."""
+        with self.assertRaises(ValueError) as cm:
+            SamplerConfig(
+                prior_transform=self.prior_transform,
+                log_likelihood=self.log_likelihood,
+                n_dim=2,
+                volume_variation=-0.1,  # Negative
+            )
+        self.assertIn("volume_variation", str(cm.exception))
+        self.assertIn("must be positive", str(cm.exception))
 
-    def test_none_n_active_computed(self):
-        """Test that n_active=None triggers default computation."""
-        config = SamplerConfig(
-            prior_transform=self.prior_transform,
-            log_likelihood=self.log_likelihood,
-            n_dim=5,
-            n_effective=100,
-            n_active=None,  # This should trigger computation
-        )
-        # n_active should be computed as n_effective // 2 = 50
-        self.assertEqual(config.n_active, 50)
-        self.assertEqual(config.n_effective, 100)
-
-    def test_zero_n_active_raises_error(self):
-        """Test that n_active=0 raises error."""
+    def test_zero_n_particles_raises_error(self):
+        """Test that n_particles=0 raises error."""
         with self.assertRaises(ValueError) as cm:
             SamplerConfig(
                 prior_transform=self.prior_transform,
                 log_likelihood=self.log_likelihood,
                 n_dim=5,
-                n_effective=100,
-                n_active=0,  # Zero should be invalid
+                n_particles=0,  # Zero should be invalid
             )
-        self.assertIn("n_active must be positive integer, got 0", str(cm.exception))
+        self.assertIn("n_particles must be positive integer, got 0", str(cm.exception))
 
-    def test_zero_n_effective_raises_error(self):
-        """Test that n_effective=0 raises error."""
+    def test_negative_n_particles_raises_error(self):
+        """Test that negative n_particles raises error."""
         with self.assertRaises(ValueError) as cm:
             SamplerConfig(
                 prior_transform=self.prior_transform,
                 log_likelihood=self.log_likelihood,
                 n_dim=5,
-                n_effective=0,  # Zero should be invalid
-                n_active=50,
-            )
-        self.assertIn("n_effective must be positive integer, got 0", str(cm.exception))
-
-    def test_negative_n_active_raises_error(self):
-        """Test that negative n_active raises error."""
-        with self.assertRaises(ValueError) as cm:
-            SamplerConfig(
-                prior_transform=self.prior_transform,
-                log_likelihood=self.log_likelihood,
-                n_dim=5,
-                n_effective=100,
-                n_active=-10,
-            )
-        self.assertIn("n_active must be positive integer, got -10", str(cm.exception))
-
-    def test_negative_n_effective_raises_error(self):
-        """Test that negative n_effective raises error."""
-        with self.assertRaises(ValueError) as cm:
-            SamplerConfig(
-                prior_transform=self.prior_transform,
-                log_likelihood=self.log_likelihood,
-                n_dim=5,
-                n_effective=-50,
-                n_active=25,
+                n_particles=-10,
             )
         self.assertIn(
-            "n_effective must be positive integer, got -50", str(cm.exception)
+            "n_particles must be positive integer, got -10", str(cm.exception)
         )
+
+    def test_get_target_metric_ess_mode(self):
+        """Test get_target_metric for ESS mode (volume_variation=None)."""
+        config = SamplerConfig(
+            prior_transform=self.prior_transform,
+            log_likelihood=self.log_likelihood,
+            n_dim=2,
+            volume_variation=None,
+            n_particles=50,
+            ess_ratio=2.0,
+        )
+        # Should return ess_ratio * n_particles
+        self.assertEqual(config.get_target_metric(), 100.0)
+
+    def test_get_target_metric_dynamic_mode(self):
+        """Test get_target_metric for dynamic mode (volume_variation set)."""
+        config = SamplerConfig(
+            prior_transform=self.prior_transform,
+            log_likelihood=self.log_likelihood,
+            n_dim=2,
+            volume_variation=0.25,
+        )
+        # Should return volume_variation
+        self.assertEqual(config.get_target_metric(), 0.25)
+
+    def test_dynamic_mode_warning_insufficient_particles(self):
+        """Test that dynamic mode warns with insufficient particles."""
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = SamplerConfig(
+                prior_transform=self.prior_transform,
+                log_likelihood=self.log_likelihood,
+                n_dim=10,
+                volume_variation=0.25,  # Dynamic mode enabled
+                n_particles=5,  # Less than n_dim + 1 = 11
+            )
+            # Check that a warning was raised
+            self.assertEqual(len(w), 1)
+            self.assertIn("dynamic mode", str(w[0].message))
+            self.assertIn("n_particles", str(w[0].message))
+            self.assertIsNotNone(config.volume_variation)
 
 
 if __name__ == "__main__":

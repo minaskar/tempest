@@ -26,8 +26,8 @@ class Mutator:
         Likelihood function (already wrapped with _log_like).
     pbar : ProgressBar, optional
         Progress bar to update with stats.
-    n_active_fn : callable
-        Function returning current n_active (from Reweighter).
+    n_particles : int
+        Number of particles (fixed during run).
     n_dim : int
         Dimensionality of parameter space.
     n_steps : int
@@ -50,7 +50,7 @@ class Mutator:
         prior_transform: Callable,
         log_likelihood: Callable,
         pbar: Optional[ProgressBar] = None,
-        n_active_fn: Optional[Callable[[], int]] = None,
+        n_particles: int = 256,
         n_dim: int = 1,
         n_steps: int = 10,
         n_max_steps: int = 1000,
@@ -64,7 +64,7 @@ class Mutator:
         self.prior_transform = prior_transform
         self.log_likelihood = log_likelihood
         self.pbar = pbar
-        self.n_active_fn = n_active_fn
+        self.n_particles = n_particles
         self.n_dim = n_dim
         self.n_steps = n_steps
         self.n_max_steps = n_max_steps
@@ -99,12 +99,11 @@ class Mutator:
         # During warmup (beta=0), draw fresh prior samples instead of MCMC
         beta = self.state.get_current("beta")
         if beta == 0.0:
-            n_active = self.n_active_fn()
-            u = np.random.rand(n_active, self.n_dim)
-            x = np.array([self.prior_transform(u[i]) for i in range(n_active)])
+            u = np.random.rand(self.n_particles, self.n_dim)
+            x = np.array([self.prior_transform(u[i]) for i in range(self.n_particles)])
             logl, blobs = self.log_likelihood(x)
-            assignments = np.zeros(n_active, dtype=int)
-            calls = self.state.get_current("calls") + n_active
+            assignments = np.zeros(self.n_particles, dtype=int)
+            calls = self.state.get_current("calls") + self.n_particles
 
             self.state.update_current(
                 {

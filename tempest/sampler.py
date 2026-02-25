@@ -11,7 +11,7 @@ from .tools import FunctionWrapper
 
 class Sampler:
     """
-    Public API facade for Tempest sampler - maintains backward compatibility.
+    Public API facade for Tempest sampler.
 
     All configuration and algorithm logic is delegated to internal components:
     - SamplerConfig: validates and stores configuration
@@ -24,9 +24,9 @@ class Sampler:
         prior_transform: callable,
         log_likelihood: callable,
         n_dim: int,
-        n_effective: int = 512,
-        n_active: Optional[int] = None,
-        n_boost: int = None,
+        n_particles: Optional[int] = None,
+        ess_ratio: float = 2.0,
+        volume_variation: Optional[float] = None,
         log_likelihood_args: Optional[list] = None,
         log_likelihood_kwargs: Optional[dict] = None,
         vectorize: bool = False,
@@ -61,18 +61,19 @@ class Sampler:
             Function computing log-likelihood for given parameter values.
         n_dim : int
             Number of dimensions/parameters in the problem.
-        n_effective : int, optional
-            Target effective sample size (default: 512). Primary parameter controlling
-            resolution and variance of results. Higher values capture more complex
-            posterior structure at increased computational cost.
-        n_active : Optional[int], optional
-            Number of active particles per iteration. When None (default), automatically
-            computed as n_effective // 2 (optimal for most cases). For parallelization
-            with pool > 1, manually set to integer multiple of CPU cores close to
-            n_effective // 2 (40-60% range) for optimal load balancing.
-        n_boost : int, optional
-            Dynamic particle boost target for wide priors. Set to 2-4× n_effective
-            for posterior-only estimation or leave as None (default).
+        n_particles : int, optional
+            Number of particles (active samples) per iteration. When None (default),
+            automatically set to 2 * n_dim.
+        ess_ratio : float, optional
+            Target ESS ratio (ESS / n_particles) for ESS mode (default: 2.0).
+            The actual target ESS is ess_ratio * n_particles. Used when volume_variation=None.
+        volume_variation : float, optional
+            Target coefficient of variation for volume to enable dynamic mode (default: None).
+            When None, uses ESS-only mode. When a positive float, uses dynamic mode which
+            searches for beta where volume variation equals this value after finding beta_upper
+            where ESS = n_particles * ess_ratio. This is the CV of sqrt(det(Cov)),
+            measuring the variation of the confidence ellipsoid volume.
+            Lower values enforce more uniform coverage. Must be positive when not None.
         log_likelihood_args : list, optional
             Positional arguments to pass to log_likelihood function.
         log_likelihood_kwargs : dict, optional
@@ -126,9 +127,9 @@ class Sampler:
             prior_transform=prior_transform,
             log_likelihood=wrapped_likelihood,
             n_dim=n_dim,
-            n_effective=n_effective,
-            n_active=n_active,
-            n_boost=n_boost,
+            n_particles=n_particles,
+            ess_ratio=ess_ratio,
+            volume_variation=volume_variation,
             log_likelihood_args=log_likelihood_args,
             log_likelihood_kwargs=log_likelihood_kwargs,
             vectorize=vectorize,
@@ -308,21 +309,26 @@ class Sampler:
         """Return results (backward compatibility)."""
         return self.state.compute_results()
 
-    # Backward compatible property accessors
+    # Property accessors
     @property
     def n_dim(self) -> int:
         """Number of dimensions."""
         return self._core.config.n_dim
 
     @property
-    def n_effective(self) -> int:
-        """Number of effective particles."""
-        return self._core.config.n_effective
+    def n_particles(self) -> int:
+        """Number of particles."""
+        return self._core.config.n_particles
 
     @property
-    def n_active(self) -> int:
-        """Number of active particles."""
-        return self._core.config.n_active
+    def ess_ratio(self) -> float:
+        """Target ESS ratio."""
+        return self._core.config.ess_ratio
+
+    @property
+    def volume_variation(self) -> Optional[float]:
+        """Target coefficient of variation for volume. None for ESS-only mode."""
+        return self._core.config.volume_variation
 
     @property
     def n_steps(self) -> int:
@@ -333,11 +339,6 @@ class Sampler:
     def n_max_steps(self) -> int:
         """Maximum number of MCMC steps."""
         return self._core.config.n_max_steps
-
-    @property
-    def n_boost(self) -> Optional[int]:
-        """Boost target for particle count."""
-        return self._core.config.n_boost
 
     @property
     def n_total(self) -> Optional[int]:
@@ -398,8 +399,3 @@ class Sampler:
     def ess(self) -> float:
         """Current effective sample size."""
         return self.state.get_current("ess")
-
-    @property
-    def n_effective_init(self) -> int:
-        """Initial number of effective particles."""
-        return self._core.config.n_effective

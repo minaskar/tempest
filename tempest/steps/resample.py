@@ -1,11 +1,13 @@
 """Resampling step for Persistent Sampling algorithm."""
 
-import numpy as np
-from typing import Optional, Callable
+from typing import Optional
 
+import numpy as np
+from matplotlib.axes import Subplot
+
+from tempest.cluster import HierarchicalGaussianMixture
 from tempest.state_manager import StateManager
 from tempest.tools import systematic_resample
-from tempest.cluster import HierarchicalGaussianMixture
 
 
 class Resampler:
@@ -19,8 +21,8 @@ class Resampler:
     ----------
     state : StateManager
         State manager for reading/writing particle state.
-    n_active_fn : callable
-        Function returning current n_active (from Reweighter).
+    n_particles : int
+        Number of particles to resample (fixed during run).
     resample : str
         Resampling scheme: "syst" (systematic) or "mult" (multinomial).
     clusterer : HierarchicalGaussianMixture, optional
@@ -34,7 +36,7 @@ class Resampler:
     def __init__(
         self,
         state: StateManager,
-        n_active_fn: Callable[[], int],
+        n_particles: int,
         resample: str = "syst",
         clusterer: Optional[HierarchicalGaussianMixture] = None,
         clustering: bool = True,
@@ -42,7 +44,7 @@ class Resampler:
     ):
         """Initialize Resampler."""
         self.state = state
-        self.n_active_fn = n_active_fn
+        self.n_particles = n_particles
         self.resample = resample
         self.clusterer = clusterer
         self.clustering = clustering
@@ -58,19 +60,16 @@ class Resampler:
             Normalized importance weights for all historical particles.
 
         Updates current state:
-            - u: unit hypercube coordinates (shape: [n_active, n_dim])
-            - x: physical coordinates (shape: [n_active, n_dim])
-            - logl: log-likelihoods (shape: [n_active])
-            - blobs: auxiliary data (shape: [n_active, ...] if enabled)
-            - assignments: cluster labels (shape: [n_active])
+            - u: unit hypercube coordinates (shape: [n_particles, n_dim])
+            - x: physical coordinates (shape: [n_particles, n_dim])
+            - logl: log-likelihoods (shape: [n_particles])
+            - blobs: auxiliary data (shape: [n_particles, ...] if enabled)
+            - assignments: cluster labels (shape: [n_particles])
         """
-        # Get current n_active (may have changed due to boost)
-        n_active = self.n_active_fn()
-
         # Skip resampling during warmup (beta=0) - will draw fresh prior samples
         beta = self.state.get_current("beta")
         if beta == 0.0:
-            self.state.set_current("assignments", np.zeros(n_active, dtype=int))
+            self.state.set_current("assignments", np.zeros(self.n_particles, dtype=int))
             return
 
         u = self.state.get_history("u", flat=True)
@@ -80,10 +79,10 @@ class Resampler:
 
         if self.resample == "mult":
             idx_resampled = np.random.choice(
-                np.arange(len(weights)), size=n_active, replace=True, p=weights
+                np.arange(len(weights)), size=self.n_particles, replace=True, p=weights
             )
         elif self.resample == "syst":
-            idx_resampled = systematic_resample(n_active, weights=weights)
+            idx_resampled = systematic_resample(self.n_particles, weights=weights)
 
         u_resampled = u[idx_resampled]
         self.state.update_current(
@@ -93,7 +92,7 @@ class Resampler:
                 "logl": logl[idx_resampled],
                 "assignments": self.clusterer.predict(u_resampled)
                 if self.clustering
-                else np.zeros(n_active, dtype=int),
+                else np.zeros(self.n_particles, dtype=int),
             }
         )
 

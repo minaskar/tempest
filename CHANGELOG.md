@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.2.0] - 2026-02-25
+
+### Changed (Breaking)
+
+- **Renamed GSS metric to volume_variation**: The "GSS" (Geometric Sample Size) metric has been renamed to "volume_variation" for clarity.
+  - Metric string changed: `"gss"` → `"volume_variation"`
+  - Parameter renamed: `target_gss` → `target_volume_variation`
+  - Property renamed: `sampler.target_gss` → `sampler.target_volume_variation`
+  - Default value changed: `0.90` → `0.25`
+  - **Semantics change**: The sigmoid transformation has been removed. The function now returns the raw coefficient of variation (CV) of sqrt(det(Cov)).
+    - Old: Range [0, 1], higher = better coverage
+    - New: Range [0, ∞), lower = better coverage (lower volume variation)
+  - **Migration**:
+    ```python
+    # Old API
+    sampler = Sampler(..., metric="gss", target_gss=0.90)
+    
+    # New API
+    sampler = Sampler(..., metric="volume_variation", target_volume_variation=0.25)
+    ```
+
 ## [0.1.4] - 2026-01-24
 
 ### Fixed

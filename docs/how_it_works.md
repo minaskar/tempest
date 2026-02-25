@@ -300,7 +300,7 @@ return samples, log_evidence
 **If β > 0**:
 1. Compute importance weights for all historical particles
 2. Normalize weights to sum to 1
-3. Resample n_active particles with replacement according to weights
+3. Resample n_particles particles with replacement according to weights
    - **Multinomial**: Simple random (higher variance)
    - **Systematic**: Deterministic stratified (lower variance, default)
 4. Resample in u-space: Unit hypercube coordinates first, then transform
@@ -374,37 +374,7 @@ return samples, log_evidence
 
 ## 4. Advanced Features Deep Dive
 
-### 4.1 Boosting: Smart Resource Allocation
-
-**What it is**: Gradually increase particle count as sampling progresses from prior to posterior.
-
-**Why it's useful**: Save computation early when fewer particles needed, increase accuracy near posterior.
-
-**How it works**:
-
-When n_boost is set:
-- Start with n_effective particles (e.g., 512)
-- As β increases, smoothly transition toward n_boost (e.g., 2048)
-- Use sigmoid curve for smooth increase
-- Adjust both n_active and n_effective targets
-
-**When to use**: Expensive likelihoods, high dimensions, need high accuracy near posterior
-
-**When NOT to use**: Cheap likelihoods, small problems
-
-**Performance impact**: 30-50% computational savings vs static allocation
-
-!!! info "Advanced: Boosting Curve Mathematics"
-    
-    **Sigmoid Function**: n_eff(β) = n_eff^0 + (n_boost - n_eff^0) / (1 + exp(-s(β-β_0)))
-    
-    **Savings**: Relative cost = ∫_0^1 n_eff(β)dβ / n_boost ≈ 0.5-0.7
-    
-    **Optimal Design**: Allocates particles where information gain per iteration is highest (near posterior)
-
----
-
-### 4.2 Evidence Estimation
+### 4.1 Evidence Estimation
 
 **What it is**: Built-in estimation of Bayesian model evidence (marginal likelihood, logZ).
 
@@ -419,7 +389,7 @@ When n_boost is set:
 
 **Interpretation**: Higher logZ = better model. ΔlogZ > 5 is strong evidence.
 
-**When reliable**: n_effective ≥ 512, smooth β progression, well-explored posterior
+**When reliable**: n_particles ≥ 512, smooth β progression, well-explored posterior
 
 **Accuracy**: Typical error O(N^(-1/2)) where N is number of particles
 
@@ -493,13 +463,13 @@ When n_boost is set:
 ### Migration from Other Methods
 
 **From emcee**:
-- `n_walkers` → Set `n_effective` to similar value (e.g., 32 walkers → n_effective=512, ~16× multiplier)
+- `n_walkers` → Set `n_particles` to similar value (e.g., 32 walkers → n_particles=512, ~16× multiplier)
 - `sampler.run_mcmc()` → `sampler.run()`
 - Samples: `sampler.posterior()` returns `(x, weights, logl)` instead of `sampler.flatchain`
 - Enable clustering for multimodality: `clustering=True`
 
 **From dynesty**:
-- `nlive` → Set `n_effective` to similar value (direct mapping)
+- `nlive` → Set `n_particles` to similar value (direct mapping)
 - `NestedSampler` → Use `Sampler` class
 - Enable clustering for multimodal problems: `clustering=True`
 - PS provides similar evidence estimation with persistence advantage
@@ -517,7 +487,7 @@ Iter: 50 [beta=0.85, ESS=512, logZ=-15.3, logL=-12.1, acc=0.42, steps=10, eff=0.
 | Indicator | Healthy Range | What It Means |
 |-----------|---------------|---------------|
 | beta | 0→1 gradual | Current inverse temperature |
-| ESS | Close to n_effective until β=1, then increases to n_total | Effective sample size |
+| ESS | Close to n_particles until β=1, then increases to n_total | Effective sample size |
 | logZ | Stabilizing (not necessarily increasing) | Log evidence estimate |
 | logL | Generally increasing with β | Mean log-likelihood |
 | acc | >0.15 healthy | MCMC acceptance rate |
@@ -529,7 +499,7 @@ Iter: 50 [beta=0.85, ESS=512, logZ=-15.3, logL=-12.1, acc=0.42, steps=10, eff=0.
 
 **Common patterns**:
 - Beta stuck near 0: prior/likelihood scale mismatch
-- Very low ESS: increase n_effective
+- Very low ESS: increase n_particles
 - Low acceptance: enable clustering or try RWM
 - K=1 for multimodal: decrease split_threshold
 

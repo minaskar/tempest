@@ -62,8 +62,7 @@ sampler_linear = tp.Sampler(
     prior_transform=prior_transform_linear,
     log_likelihood=log_likelihood_linear,
     n_dim=3,
-    n_effective=512,
-    n_active=256,
+    n_particles=512,
     random_state=42,
 )
 
@@ -93,8 +92,7 @@ sampler_osc = tp.Sampler(
     prior_transform=prior_transform_oscillatory,
     log_likelihood=log_likelihood_oscillatory,
     n_dim=5,
-    n_effective=512,
-    n_active=256,
+    n_particles=512,
     random_state=42,
 )
 
