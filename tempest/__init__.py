@@ -15,7 +15,7 @@ __author__ = "Minas Karamanis"
 __email__ = "minaskar@gmail.com"
 __license__ = "MIT"
 __description__ = "A Python implementation of Persistent Sampling for accelerated Bayesian Computation"
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from .sampler import Sampler
 

@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     sampler = Sampler(..., metric="volume_variation", target_volume_variation=0.25)
     ```
 
+## [0.2.1] - 2026-02-25
+
+### Fixed
+- **Removed unused matplotlib import**: Fixed `ModuleNotFoundError` in CI tests caused by unused import `from matplotlib.axes import Subplot` in `tempest/steps/resample.py`
+  - This import was causing test failures when matplotlib was not installed
+  - Also fixed F401 lint error (unused import)
+
 ## [0.1.4] - 2026-01-24
 
 ### Fixed
