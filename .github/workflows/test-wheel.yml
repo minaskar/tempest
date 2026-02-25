@@ -73,10 +73,10 @@ jobs:
           def log_likelihood(x):
               return -0.5 * np.sum(x**2)
           
-          sampler = Sampler(prior_transform, log_likelihood, n_dim=1, n_effective=50)
+          sampler = Sampler(prior_transform, log_likelihood, n_dim=1, n_particles=50)
           print('✓ Sampler instantiated successfully')
           print(f'  n_dim: {sampler.n_dim}')
-          print(f'  n_effective: {sampler.n_effective}')
+          print(f'  n_particles: {sampler.n_particles}')
           "
       
       - name: Clean up
