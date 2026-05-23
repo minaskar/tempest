@@ -32,7 +32,11 @@ class Reweighter:
     ESS_TOLERANCE : float
         Relative tolerance for metric target (default: 0.01).
     BETA_TOLERANCE : float
-        Tolerance for beta convergence (default: 1e-4).
+        Absolute tolerance for beta interval width (default: 1e-4).
+    BETA_RTOL : float
+        Relative tolerance for beta interval width (default: 1e-8).
+    METRIC_ATOL : float
+        Absolute tolerance floor for metric convergence (default: 0.5).
 
     Attributes
     ----------
@@ -53,6 +57,8 @@ class Reweighter:
         volume_variation: Optional[float] = None,
         ESS_TOLERANCE: float = 0.001,
         BETA_TOLERANCE: float = 1e-5,
+        BETA_RTOL: float = 1e-8,
+        METRIC_ATOL: float = 0.5,
     ):
         """Initialize Reweighter."""
         self.state = state
@@ -72,6 +78,8 @@ class Reweighter:
         # Algorithm constants
         self.ESS_TOLERANCE = ESS_TOLERANCE
         self.BETA_TOLERANCE = BETA_TOLERANCE
+        self.BETA_RTOL = BETA_RTOL
+        self.METRIC_ATOL = METRIC_ATOL
 
     def _compute_metric_and_weights(self, beta: float) -> tuple:
         """Compute weights, ESS, and metric value for a given beta.
@@ -117,10 +125,14 @@ class Reweighter:
     ) -> tuple:
         """Find beta via bisection to achieve target metric value.
 
-        Continues iterating until the metric converges within
-        ``ESS_TOLERANCE * target``, using ``BETA_TOLERANCE`` only as a
-        sanity bound (with ``_MAX_BISECTION_ITERATIONS`` as a hard limit)
-        to avoid runaway loops.
+        Converges when either the metric is within tolerance of the
+        target or the beta bracket has shrunk below tolerance.  Metric
+        convergence uses both a relative and absolute tolerance:
+        ``|metric - target| < max(ESS_TOLERANCE * |target|, METRIC_ATOL)``.
+        Beta interval convergence uses:
+        ``beta_max - beta_min < max(BETA_RTOL * max(|beta_min|, |beta_max|), BETA_TOLERANCE)``.
+        A hard iteration limit (``_MAX_BISECTION_ITERATIONS``) prevents
+        runaway loops.
 
         Parameters
         ----------
@@ -155,10 +167,23 @@ class Reweighter:
                 else:
                     metric_val = 1e10  # Treat as very large (ESS too high)
 
-            # Check convergence: metric must be within tolerance of target
-            metric_converged = np.abs(metric_val - target) < self.ESS_TOLERANCE * target
+            # Check convergence: metric within relative + absolute tolerance
+            metric_converged = (
+                np.abs(metric_val - target)
+                < max(self.ESS_TOLERANCE * np.abs(target), self.METRIC_ATOL)
+            )
 
-            if metric_converged or beta == 1.0:
+            # Secondary convergence: beta bracket has shrunk below tolerance
+            beta_width = beta_max - beta_min
+            beta_converged = (
+                beta_width
+                < max(
+                    self.BETA_RTOL * max(np.abs(beta_min), np.abs(beta_max)),
+                    self.BETA_TOLERANCE,
+                )
+            )
+
+            if metric_converged or beta_converged or beta == 1.0:
                 return beta, aux_data
 
             # Update bisection bounds based on metric direction
@@ -230,9 +255,18 @@ class Reweighter:
         if ess_at_one >= ess_target:
             return 1.0, 1.0  # Valid throughout, can go all the way to 1.0
 
-        # Bisection to find where ESS drops below target
-        while beta_high - beta_low > self.BETA_TOLERANCE:
+        # Bisection to find where ESS drops below target.
+        # Use both relative and absolute tolerance on the beta interval:
+        #   beta_high - beta_low > max(BETA_RTOL * beta_mid, BETA_TOLERANCE)
+        # The relative part avoids excessive precision when beta is large;
+        # the absolute part ensures convergence when beta is near zero.
+        while True:
             beta_mid = (beta_high + beta_low) * 0.5
+            interval = beta_high - beta_low
+            if interval <= max(
+                self.BETA_RTOL * beta_mid, self.BETA_TOLERANCE
+            ):
+                break
             _, ess_mid, _ = self._compute_metric_and_weights(beta_mid)
 
             if ess_mid >= ess_target:

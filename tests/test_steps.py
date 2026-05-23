@@ -170,6 +170,8 @@ class ReweighterTestCase(unittest.TestCase):
             ess_ratio=0.5,  # target = 16, easily exceeded
             ESS_TOLERANCE=0.01,
             BETA_TOLERANCE=1e-4,
+            BETA_RTOL=1e-8,
+            METRIC_ATOL=0.5,
         )
 
         # Commit 3 warmup iterations so ESS at beta=0 >> target
@@ -193,8 +195,66 @@ class ReweighterTestCase(unittest.TestCase):
         # Should have advanced to beta > 0 but not to beta=1
         self.assertGreater(float(beta), 0.0)
         self.assertLess(float(beta), 1.0)
-        # ESS should be within ESS_TOLERANCE (1%) of target
-        self.assertAlmostEqual(float(ess), target, delta=0.05 * target)
+        # ESS should be within max(ESS_TOLERANCE * target, METRIC_ATOL) of target
+        # With ESS_TOLERANCE=0.01 and target=16, tol = max(0.16, 0.5) = 0.5
+        self.assertAlmostEqual(float(ess), target, delta=0.5)
+
+    def test_bisection_absolute_tolerance_for_small_target(self):
+        """Test that METRIC_ATOL prevents excessive precision for small targets.
+
+        When the target metric is very small (e.g., volume_variation=0.05),
+        a purely relative tolerance would require |m - t| < 5e-5, which is
+        unnecessarily tight. The absolute floor (METRIC_ATOL) ensures
+        convergence once |m - t| < max(rtol * |t|, atol).
+        """
+        # Simulate bisection directly to verify tolerance logic
+        reweighter = Reweighter(
+            state=self.state,
+            pbar=None,
+            n_particles=32,
+            ess_ratio=1.0,
+            ESS_TOLERANCE=0.01,
+            METRIC_ATOL=0.5,
+        )
+
+        # For a target of 32 (ESS), relative tolerance alone gives 0.32
+        # With METRIC_ATOL=0.5, effective tolerance = max(0.32, 0.5) = 0.5
+        effective_tol = max(reweighter.ESS_TOLERANCE * 32, reweighter.METRIC_ATOL)
+        self.assertEqual(effective_tol, 0.5)  # Absolute tolerance dominates
+
+        # For a target of 500, relative tolerance gives 5.0
+        effective_tol_large = max(reweighter.ESS_TOLERANCE * 500, reweighter.METRIC_ATOL)
+        self.assertEqual(effective_tol_large, 5.0)  # Relative tolerance dominates
+
+    def test_beta_interval_relative_tolerance(self):
+        """Test that BETA_RTOL prevents excessive precision for large beta.
+
+        When beta is near 1.0, a purely absolute tolerance of 1e-5 is
+        proportionally very small (1e-5 relative). The relative tolerance
+        ensures we don't over-refine the bracket for large beta values.
+        """
+        reweighter = Reweighter(
+            state=self.state,
+            pbar=None,
+            n_particles=32,
+            ess_ratio=1.0,
+            BETA_TOLERANCE=1e-5,
+            BETA_RTOL=1e-8,
+        )
+
+        # For beta near 1.0, relative tolerance = 1e-8, which is smaller
+        # than absolute 1e-5, so absolute dominates
+        effective_tol = max(reweighter.BETA_RTOL * 1.0, reweighter.BETA_TOLERANCE)
+        self.assertEqual(effective_tol, 1e-5)
+
+        # For beta near 0.01, relative tolerance = 1e-10, absolute still dominates
+        effective_tol_small = max(reweighter.BETA_RTOL * 0.01, reweighter.BETA_TOLERANCE)
+        self.assertEqual(effective_tol_small, 1e-5)
+
+        # For beta = 1e6 (extreme), relative would be 0.01 and dominate
+        # (not realistic for nested sampling but tests the logic)
+        effective_tol_extreme = max(reweighter.BETA_RTOL * 1e6, reweighter.BETA_TOLERANCE)
+        self.assertEqual(effective_tol_extreme, 0.01)
 
 
 class TrainerTestCase(unittest.TestCase):

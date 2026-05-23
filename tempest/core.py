@@ -6,7 +6,9 @@ import numpy as np
 from .config import (
     SamplerConfig,
     BETA_TOLERANCE,
+    BETA_RTOL,
     ESS_TOLERANCE,
+    METRIC_ATOL,
     TRIM_ESS,
     TRIM_BINS,
     DOF_FALLBACK,
@@ -43,6 +45,8 @@ class SamplerCore:
             volume_variation=config.volume_variation,
             ESS_TOLERANCE=ESS_TOLERANCE,  # From centralized config
             BETA_TOLERANCE=BETA_TOLERANCE,  # From centralized config
+            BETA_RTOL=BETA_RTOL,  # From centralized config
+            METRIC_ATOL=METRIC_ATOL,  # From centralized config
         )
 
         # Initialize clusterer if clustering is enabled
