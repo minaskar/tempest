@@ -15,6 +15,7 @@ CURRENT_STATE_KEYS = frozenset(
         "steps",
         "efficiency",
         "ess",
+        "cv",
         "beta",
         "logz",
         "calls",
@@ -34,6 +35,7 @@ HISTORY_STATE_KEYS = frozenset(
         "steps",
         "efficiency",
         "ess",
+        "cv",
         "acceptance",
         "beta",
     }

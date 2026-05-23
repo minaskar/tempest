@@ -97,6 +97,105 @@ class ReweighterTestCase(unittest.TestCase):
         self.assertGreater(len(weights2), 0)
         np.testing.assert_allclose(np.sum(weights2), 1.0)
 
+    def test_ess_equals_target_stays_at_beta_zero(self):
+        """Test that sampler stays at beta=0 when ESS exactly equals target.
+
+        When ESS at the current beta exactly equals the target, any higher
+        beta would give ESS < target.  Advancing to an infinitesimally
+        small beta step would be wasteful, so the sampler should stay at
+        the current beta and accumulate more particles.
+
+        This is a regression test for a floating-point comparison bug
+        where ESS = 200.0 was treated as < 200.0 due to rounding.
+        """
+        np.random.seed(42)
+        n_particles = 16
+        reweighter = Reweighter(
+            state=self.state,
+            pbar=None,
+            n_particles=n_particles,
+            ess_ratio=1.0,  # target = 16
+        )
+
+        # First iteration (no history) — sets beta=0, ess=16
+        reweighter.run()
+
+        # Commit particles to history
+        u = np.random.rand(n_particles, self.n_dim)
+        x = u * 6 - 3
+        logl = -np.sum(x**2, axis=1)
+        self.state.update_current(
+            {"u": u, "x": x, "logl": logl, "beta": 0.0, "logz": 0.0}
+        )
+        self.state.commit_current_to_history()
+
+        # After first iteration, we have n_particles=16 in history
+        # and target=16.  ESS at beta=0 equals target exactly,
+        # so we should stay at beta=0.
+        u2 = np.random.rand(n_particles, self.n_dim)
+        x2 = u2 * 6 - 3
+        logl2 = -np.sum(x2**2, axis=1)
+        self.state.update_current(
+            {"u": u2, "x": x2, "logl": logl2, "beta": 0.0, "logz": 0.0}
+        )
+
+        reweighter.run()
+        beta = self.state.get_current("beta")
+        # Should stay at beta=0 since ESS = target
+        self.assertEqual(beta, 0.0)
+
+    def test_bisection_converges_to_target_ess(self):
+        """Test that bisection finds beta where ESS is close to target.
+
+        When the bracket range is narrow (ESS just barely exceeds target
+        at beta=0), the bisection should continue until the metric
+        converges within ESS_TOLERANCE, not exit early on beta_converged.
+
+        This is a regression test for a premature bisection exit bug.
+        """
+        np.random.seed(123)
+        n_particles = 32
+        # Use a higher dimension so ESS drops more steeply with beta,
+        # ensuring we don't skip straight to beta=1.
+        high_dim_state = StateManager(n_dim=10)
+        high_dim_state.set_current("iter", 0)
+        high_dim_state.set_current("beta", 0.0)
+        high_dim_state.set_current("logz", 0.0)
+        high_dim_state.set_current("calls", 0)
+
+        reweighter = Reweighter(
+            state=high_dim_state,
+            pbar=None,
+            n_particles=n_particles,
+            ess_ratio=0.5,  # target = 16, easily exceeded
+            ESS_TOLERANCE=0.01,
+            BETA_TOLERANCE=1e-4,
+        )
+
+        # Commit 3 warmup iterations so ESS at beta=0 >> target
+        for _ in range(3):
+            u = np.random.rand(n_particles, 10)
+            x = u * 20 - 10
+            logl = -0.5 * np.sum(x**2, axis=1) - 0.5 * 10 * np.log(2 * np.pi)
+            high_dim_state.update_current(
+                {"u": u, "x": x, "logl": logl, "beta": 0.0, "logz": 0.0}
+            )
+            high_dim_state.commit_current_to_history()
+
+        high_dim_state.set_current("iter", 3)
+        high_dim_state.set_current("beta", 0.0)
+
+        weights = reweighter.run()
+        beta = high_dim_state.get_current("beta")
+        ess = high_dim_state.get_current("ess")
+        target = 0.5 * n_particles  # 16
+
+        # Should have advanced to beta > 0 but not to beta=1
+        self.assertGreater(float(beta), 0.0)
+        self.assertLess(float(beta), 1.0)
+        # ESS should be within ESS_TOLERANCE (1%) of target
+        self.assertAlmostEqual(float(ess), target, delta=0.05 * target)
+
 
 class TrainerTestCase(unittest.TestCase):
     """Test Trainer step class."""

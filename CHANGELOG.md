@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **ESS bisection now correctly finds target ESS**: The reweighting step previously
+  used `_find_beta_upper_limit` which returned only the maximum beta where
+  ESS >= target, then used it directly when `ess_upper >= target_ess` (always
+  true by construction). This caused the bisection in `run()` to never execute,
+  resulting in ESS significantly exceeding the target (20-37% above) while
+  beta advanced too slowly. The fix replaces `_find_beta_upper_limit` with
+  `_find_ess_bracket` which returns both ends of the bracket [beta_low, beta_high]
+  where ESS crosses the target. The `run()` method then properly bisects in
+  [beta_prev, beta_high] to find the exact beta where ESS = target.
+- **LinAlgError from singular covariance in Student-t fitting**: The EM algorithm
+  in `fit_mvstud` and the `ModeStatistics` constructor both failed with
+  `LinAlgError: Singular matrix` when resampled particles were degenerate
+  (e.g., all duplicates in a small cluster, or fewer data points than
+  dimensions). Both now add diagonal regularization when the covariance
+  matrix is not positive definite, using a floor value (`1e-6`) to handle
+  cases where the covariance trace is zero or near-zero.
+
 ## [0.2.0] - 2026-02-25
 
 ### Changed (Breaking)

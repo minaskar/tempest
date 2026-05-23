@@ -63,12 +63,29 @@ def fit_mvstud(data, tolerance=1e-6, max_iter=100):
     Sigma = np.cov(data) * (n - 1) / n + (1 / n) * np.diag(np.var(data, axis=1))
     nu = 20
 
+    # Regularization constant for singular covariance matrices
+    _REG_FLOOR = 1e-6  # Minimum absolute regularization
+
     last_nu = 0
     i = 0
     while np.abs(last_nu - nu) > tolerance and i < max_iter:
         i += 1
+
+        # Regularize Sigma if it is singular or near-singular
+        try:
+            np.linalg.cholesky(Sigma)
+        except np.linalg.LinAlgError:
+            reg = max(_REG_FLOOR, _REG_FLOOR * np.abs(np.trace(Sigma)))
+            Sigma = Sigma + np.eye(dim) * reg
+
         diffs = data - mu
-        delta_iobs = np.sum(diffs * np.linalg.solve(Sigma, diffs), 0)
+        try:
+            delta_iobs = np.sum(diffs * np.linalg.solve(Sigma, diffs), 0)
+        except np.linalg.LinAlgError:
+            # Fallback: add stronger regularization
+            reg = max(1e-3, 1e-3 * np.abs(np.trace(Sigma)))
+            Sigma = Sigma + np.eye(dim) * reg
+            delta_iobs = np.sum(diffs * np.linalg.solve(Sigma, diffs), 0)
 
         # update nu
         last_nu = nu
@@ -88,5 +105,12 @@ def fit_mvstud(data, tolerance=1e-6, max_iter=100):
         print("Warning: EM algorithm did not converge.")
         print("Last nu: ", last_nu)
         print("Current nu: ", nu)
+
+    # Ensure final Sigma is positive definite
+    try:
+        np.linalg.cholesky(Sigma)
+    except np.linalg.LinAlgError:
+        reg = max(_REG_FLOOR, _REG_FLOOR * np.abs(np.trace(Sigma)))
+        Sigma = Sigma + np.eye(dim) * reg
 
     return mu.T[0], Sigma, nu

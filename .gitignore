@@ -28,3 +28,4 @@ AGENTS.md
 site/
 dist/
 examples/
+.pi-lens/

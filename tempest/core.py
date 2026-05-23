@@ -292,6 +292,7 @@ class SamplerCore:
             "steps": 0,
             "acceptance": 0.0,
             "efficiency": 0.0,
+            "cv": None,
         }
         for key, default_val in required_keys.items():
             if self.state.get_current(key) is None:
@@ -404,20 +405,21 @@ class SamplerCore:
         """Update progress bar after iteration."""
         if self.pbar is not None:
             current = self.state.get_current()
-            self.pbar.update_stats(
-                dict(
-                    calls=current["calls"],
-                    beta=current["beta"],
-                    ESS=int(current["ess"]),
-                    logZ=current["logz"],
-                    logL=np.mean(current["logl"])
-                    if current["logl"] is not None
-                    else 0.0,
-                    acc=current["acceptance"],
-                    steps=current["steps"],
-                    eff=current["efficiency"],
-                )
+            stats = dict(
+                calls=current["calls"],
+                beta=current["beta"],
+                ESS=int(current["ess"]),
+                logZ=current["logz"],
+                logL=np.mean(current["logl"]) if current["logl"] is not None else 0.0,
+                acc=current["acceptance"],
+                steps=current["steps"],
+                eff=current["efficiency"],
             )
+            # Add CV if available
+            cv = current.get("cv")
+            if cv is not None:
+                stats["CV"] = cv
+            self.pbar.update_stats(stats)
 
     def _get_distribute_func(self):
         """Get distribution function (map or pool.map)."""

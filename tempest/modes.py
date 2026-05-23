@@ -99,8 +99,24 @@ class ModeStatistics:
             )
 
         # Precompute derived quantities for efficient MCMC
-        self.inv_covariances = np.linalg.inv(self.covariances)
-        self.chol_covariances = np.linalg.cholesky(self.covariances)
+        # Regularize singular covariance matrices before inversion/Cholesky
+        _REG_FLOOR = 1e-6  # Minimum absolute regularization
+
+        self.inv_covariances = np.empty_like(self.covariances)
+        self.chol_covariances = np.empty_like(self.covariances)
+        for k in range(self.K):
+            cov_k = self.covariances[k]
+            n_dim_k = cov_k.shape[0]
+            # Add regularization if covariance is not positive definite
+            try:
+                self.chol_covariances[k] = np.linalg.cholesky(cov_k)
+                self.inv_covariances[k] = np.linalg.inv(cov_k)
+            except np.linalg.LinAlgError:
+                reg = max(_REG_FLOOR, _REG_FLOOR * np.abs(np.trace(cov_k)))
+                cov_k_reg = cov_k + np.eye(n_dim_k) * reg
+                self.covariances[k] = cov_k_reg
+                self.chol_covariances[k] = np.linalg.cholesky(cov_k_reg)
+                self.inv_covariances[k] = np.linalg.inv(cov_k_reg)
 
     @property
     def K(self) -> int:

@@ -399,3 +399,8 @@ class Sampler:
     def ess(self) -> float:
         """Current effective sample size."""
         return self.state.get_current("ess")
+
+    @property
+    def cv(self) -> Optional[float]:
+        """Current volume variation (coefficient of variation). None if not yet computed."""
+        return self.state.get_current("cv")
