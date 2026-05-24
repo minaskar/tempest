@@ -233,7 +233,10 @@ class SamplerConfig:
 BETA_TOLERANCE: float = 1e-4  # Absolute tolerance on beta interval
 BETA_RTOL: float = 1e-8  # Relative tolerance on beta interval
 ESS_TOLERANCE: float = 0.01  # Relative tolerance on metric target
-METRIC_ATOL: float = 0.5  # Absolute tolerance floor on metric convergence
+METRIC_ATOL: float = 0.5  # Absolute tolerance floor on metric convergence (ESS mode)
+METRIC_ATOL_CV: float = (
+    0.01  # Absolute tolerance floor on metric convergence (CV / dynamic mode)
+)
 DOF_FALLBACK: float = 1e6
 TRIM_ESS: float = 0.99
 TRIM_BINS: int = 1000
