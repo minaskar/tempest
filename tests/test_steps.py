@@ -223,7 +223,9 @@ class ReweighterTestCase(unittest.TestCase):
         self.assertEqual(effective_tol, 0.5)  # Absolute tolerance dominates
 
         # For a target of 500, relative tolerance gives 5.0
-        effective_tol_large = max(reweighter.ESS_TOLERANCE * 500, reweighter.METRIC_ATOL)
+        effective_tol_large = max(
+            reweighter.ESS_TOLERANCE * 500, reweighter.METRIC_ATOL
+        )
         self.assertEqual(effective_tol_large, 5.0)  # Relative tolerance dominates
 
     def test_beta_interval_relative_tolerance(self):
@@ -248,12 +250,16 @@ class ReweighterTestCase(unittest.TestCase):
         self.assertEqual(effective_tol, 1e-5)
 
         # For beta near 0.01, relative tolerance = 1e-10, absolute still dominates
-        effective_tol_small = max(reweighter.BETA_RTOL * 0.01, reweighter.BETA_TOLERANCE)
+        effective_tol_small = max(
+            reweighter.BETA_RTOL * 0.01, reweighter.BETA_TOLERANCE
+        )
         self.assertEqual(effective_tol_small, 1e-5)
 
         # For beta = 1e6 (extreme), relative would be 0.01 and dominate
         # (not realistic for nested sampling but tests the logic)
-        effective_tol_extreme = max(reweighter.BETA_RTOL * 1e6, reweighter.BETA_TOLERANCE)
+        effective_tol_extreme = max(
+            reweighter.BETA_RTOL * 1e6, reweighter.BETA_TOLERANCE
+        )
         self.assertEqual(effective_tol_extreme, 0.01)
 
 

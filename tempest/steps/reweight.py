@@ -168,19 +168,21 @@ class Reweighter:
                     metric_val = 1e10  # Treat as very large (ESS too high)
 
             # Check convergence: metric within relative + absolute tolerance
-            metric_converged = (
-                np.abs(metric_val - target)
-                < max(self.ESS_TOLERANCE * np.abs(target), self.METRIC_ATOL)
+            metric_converged = np.abs(metric_val - target) < max(
+                self.ESS_TOLERANCE * np.abs(target), self.METRIC_ATOL
             )
 
-            # Secondary convergence: beta bracket has shrunk below tolerance
+            # Secondary convergence: beta bracket has shrunk below tolerance.
+            # Scale the absolute tolerance by the bracket magnitude so that
+            # small-beta regimes (e.g. early annealing steps) converge at an
+            # appropriate scale rather than being dominated by a fixed 1e-4.
+            bracket_scale = max(
+                np.abs(beta_min), np.abs(beta_max), np.finfo(float).tiny
+            )
             beta_width = beta_max - beta_min
-            beta_converged = (
-                beta_width
-                < max(
-                    self.BETA_RTOL * max(np.abs(beta_min), np.abs(beta_max)),
-                    self.BETA_TOLERANCE,
-                )
+            beta_converged = beta_width < max(
+                self.BETA_RTOL * bracket_scale,
+                self.BETA_TOLERANCE * bracket_scale,
             )
 
             if metric_converged or beta_converged or beta == 1.0:
@@ -256,15 +258,18 @@ class Reweighter:
             return 1.0, 1.0  # Valid throughout, can go all the way to 1.0
 
         # Bisection to find where ESS drops below target.
-        # Use both relative and absolute tolerance on the beta interval:
-        #   beta_high - beta_low > max(BETA_RTOL * beta_mid, BETA_TOLERANCE)
-        # The relative part avoids excessive precision when beta is large;
-        # the absolute part ensures convergence when beta is near zero.
+        # Tolerance is scaled by the current bracket magnitude so that we
+        # stop at a sensible precision regardless of whether the bracket is
+        # near 0 (typical first step) or near 1 (late-stage annealing).
         while True:
             beta_mid = (beta_high + beta_low) * 0.5
             interval = beta_high - beta_low
+            bracket_scale = max(
+                np.abs(beta_low), np.abs(beta_high), np.finfo(float).tiny
+            )
             if interval <= max(
-                self.BETA_RTOL * beta_mid, self.BETA_TOLERANCE
+                self.BETA_RTOL * bracket_scale,
+                self.BETA_TOLERANCE * bracket_scale,
             ):
                 break
             _, ess_mid, _ = self._compute_metric_and_weights(beta_mid)
@@ -407,35 +412,37 @@ class Reweighter:
                 )
             return self._finalize_iteration(beta, weights, ess_est, logz, cv=cv)
         else:
-            # For dynamic mode: use beta_upper as upper limit
-            # If beta_upper == beta_prev, we stay at current beta
-            # Otherwise, search in [beta_prev, beta_upper] for target CV
+            # For dynamic mode: use beta_high as upper limit
+            # If beta_high == beta_prev, we stay at current beta
+            # Otherwise, search in [beta_prev, beta_high] for target CV
 
             if beta_low == beta_high:
                 # No crossing: stay at current beta or go to 1.0
                 beta = beta_low
                 weights, ess_est, _ = self._compute_metric_and_weights(beta)
             else:
-                # Compute volume_variation at boundaries of ESS-safe range
+                # Compute volume_variation at boundaries of the ESS bracket
+                # [beta_low, beta_high] brackets the ESS = target crossing.
+                # We use beta_high as the upper bound for the CV search,
+                # consistent with ESS mode which also bisects in
+                # [beta_prev, beta_high].
                 _, ess_at_prev, vol_var_prev = self._compute_metric_and_weights(
                     beta_prev
                 )
-                # beta_low is the maximum beta where ESS >= target
-                # (same role as the old beta_upper)
-                _, ess_at_limit, vol_var_limit = self._compute_metric_and_weights(
-                    beta_low
+                _, ess_at_high, vol_var_high = self._compute_metric_and_weights(
+                    beta_high
                 )
 
                 # Determine beta based on volume_variation at boundaries
                 # As beta increases, volume_variation increases (unlike ESS which decreases)
                 # At beta_prev: vol_var is lower (less constrained)
-                # At beta_low: vol_var is higher (more constrained, ESS ~ target)
-                if self.volume_variation >= vol_var_limit:
-                    # Target is above what we can achieve at beta_low (too conservative)
-                    # Use beta_low (best we can do while maintaining ESS >= target)
-                    beta = beta_low
+                # At beta_high: vol_var is higher (more constrained, ESS ~ target)
+                if self.volume_variation >= vol_var_high:
+                    # Target is above CV at beta_high (too conservative)
+                    # Use beta_high (best we can do while maintaining ESS >= target)
+                    beta = beta_high
                     weights = None
-                    ess_est = ess_at_limit
+                    ess_est = ess_at_high
                 elif self.volume_variation <= vol_var_prev:
                     # Target is below current vol_var (too ambitious)
                     # Stay at beta_prev to collect more samples and potentially improve coverage
@@ -444,7 +451,7 @@ class Reweighter:
                     ess_est = ess_at_prev
                 else:
                     # Crossing exists: use bisection to find where volume_variation = target
-                    # Search within ESS-safe range [beta_prev, beta_low]
+                    # Search within [beta_prev, beta_high]
                     def volume_variation_fn(beta):
                         weights, ess_est, metric_val = self._compute_metric_and_weights(
                             beta
@@ -453,7 +460,7 @@ class Reweighter:
 
                     beta, (weights, ess_est) = self._find_beta_bisection(
                         beta_prev,
-                        beta_low,
+                        beta_high,
                         self.volume_variation,
                         volume_variation_fn,
                     )
