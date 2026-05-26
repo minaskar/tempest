@@ -114,7 +114,7 @@ class VolumeVariationSamplingTestCase(unittest.TestCase):
             random_state=0,
         )
         sampler.run(n_total=128)
-        
+
         # Should complete successfully
         self.assertEqual(sampler.state.get_current("beta"), 1.0)
         self.assertGreater(sampler.state.get_current("iter"), 0)
@@ -132,7 +132,7 @@ class VolumeVariationSamplingTestCase(unittest.TestCase):
             random_state=0,
         )
         sampler.run(n_total=128)
-        
+
         # Should complete successfully
         self.assertEqual(sampler.state.get_current("beta"), 1.0)
         self.assertGreater(sampler.state.get_current("iter"), 0)
@@ -152,7 +152,7 @@ class VolumeVariationSamplingTestCase(unittest.TestCase):
                     random_state=42,
                 )
                 sampler.run(n_total=128)
-                
+
                 # Should complete and reach beta=1
                 self.assertEqual(sampler.state.get_current("beta"), 1.0)
 
@@ -169,7 +169,7 @@ class VolumeVariationSamplingTestCase(unittest.TestCase):
             random_state=0,
         )
         sampler.run(n_total=128)
-        
+
         self.assertEqual(sampler.state.get_current("beta"), 1.0)
 
     def test_ess_vs_dynamic_mode_comparison(self):
@@ -186,7 +186,7 @@ class VolumeVariationSamplingTestCase(unittest.TestCase):
             random_state=42,
         )
         sampler_ess.run(n_total=128)
-        
+
         # Dynamic mode
         sampler_dynamic = Sampler(
             prior_transform=self.prior_transform,
@@ -199,7 +199,7 @@ class VolumeVariationSamplingTestCase(unittest.TestCase):
             random_state=42,
         )
         sampler_dynamic.run(n_total=128)
-        
+
         # Both should complete successfully
         self.assertEqual(sampler_ess.state.get_current("beta"), 1.0)
         self.assertEqual(sampler_dynamic.state.get_current("beta"), 1.0)
@@ -273,12 +273,12 @@ class VolumeVariationEdgeCasesTestCase(unittest.TestCase):
             logp1 = -0.5 * dist1 - x.shape[1] * 0.5 * np.log(2 * np.pi)
             logp2 = -0.5 * dist2 - x.shape[1] * 0.5 * np.log(2 * np.pi)
             max_logp = np.maximum(logp1, logp2)
-            result = max_logp + np.log(np.exp(logp1 - max_logp) + 
+            result = max_logp + np.log(np.exp(logp1 - max_logp) +
                                        np.exp(logp2 - max_logp)) - np.log(2)
             if x.shape[0] == 1:
                 return float(result[0])
             return result
-        
+
         sampler = Sampler(
             prior_transform=self.prior_transform,
             log_likelihood=log_likelihood_bimodal,

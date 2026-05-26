@@ -146,15 +146,15 @@ class PosteriorEvidenceAccuracyTestCase(unittest.TestCase):
         self.n_dim = 2
         self.true_mean = np.array([0.0, 0.0])
         self.true_cov = np.eye(2)
-        
+
         def prior_transform(u):
             return norm.ppf(u)
-        
+
         def log_likelihood(x):
             if x.ndim == 1:
                 x = x.reshape(1, -1)
             return multivariate_normal.logpdf(x, mean=self.true_mean, cov=self.true_cov)
-        
+
         self.sampler = Sampler(
             prior_transform=prior_transform,
             log_likelihood=log_likelihood,
@@ -169,11 +169,11 @@ class PosteriorEvidenceAccuracyTestCase(unittest.TestCase):
         """Test that posterior mean is close to true mean."""
         samples, weights, logl = self.sampler.posterior(resample=True)
         posterior_mean = np.mean(samples, axis=0)
-        
+
         # Check that posterior mean is within 0.5 of true mean
         np.testing.assert_allclose(
-            posterior_mean, 
-            self.true_mean, 
+            posterior_mean,
+            self.true_mean,
             atol=0.5,
             rtol=0.1
         )
@@ -182,7 +182,7 @@ class PosteriorEvidenceAccuracyTestCase(unittest.TestCase):
         """Test that posterior covariance is close to true covariance."""
         samples, weights, logl = self.sampler.posterior(resample=True)
         posterior_cov = np.cov(samples.T)
-        
+
         # Check diagonal (variances) - should be close to 1.0
         np.testing.assert_allclose(
             np.diag(posterior_cov),
@@ -196,7 +196,7 @@ class PosteriorEvidenceAccuracyTestCase(unittest.TestCase):
         # For Gaussian prior (unit normal) and Gaussian likelihood,
         # the log evidence can be computed analytically
         logz, logz_err = self.sampler.evidence()
-        
+
         # The evidence should be finite and reasonable
         self.assertTrue(np.isfinite(logz))
         # For this problem, logZ should be roughly between -5 and 0

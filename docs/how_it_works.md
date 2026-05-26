@@ -232,25 +232,42 @@ return samples, log_evidence
 
 **How it works**:
 
+Tempest supports two reweighting modes:
+
+**ESS mode** (default, `volume_variation=None`):
+
 1. Start with current β
-2. Propose candidate β > current
-3. Compute importance weights: w_i ∝ L(θ_i)^(β_candidate - β)
-4. Calculate Effective Sample Size (ESS)
-5. Adjust β using bisection until ESS ≈ target (default: 512)
+2. Find the bracket [β_low, β_high] where ESS crosses the target
+3. Bisect in [β_prev, β_high] to find β where ESS ≈ target (default: `ess_ratio * n_particles`)
+4. Compute volume variation (CV) at the determined β
+
+**Dynamic mode** (`volume_variation` set to a float, e.g. 0.25):
+
+1. Same ESS bracket search as ESS mode
+2. Additionally constrain β so that the coefficient of variation of volume (CV) does not exceed the target
+3. If CV at β_high already exceeds target, use β_high (ESS-constrained)
+4. If CV at β_prev is below target, stay at β_prev
+5. Otherwise bisect in [β_prev, β_high] to find where CV = target
+
+**What is CV?** The coefficient of variation of volume measures how uniformly the particle ensemble covers the parameter space. CV = std(sqrt(det(Cov))) / mean(sqrt(det(Cov))). Lower CV means more uniform coverage; higher CV indicates the ensemble is concentrated in a small region. The progress bar shows `CV` for this diagnostic.
 
 **Output**: β_(next) and importance weights for resampling
 
-**Progress bar indicators**: beta (0→1), ESS (target: 512)
+**Progress bar indicators**: beta (0→1), ESS (target), CV (volume variation)
 
 **When it helps**: Controls temperature progression to maintain particle diversity
 
 **When it struggles**: With extreme prior-likelihood scale mismatches
 
-!!! info "Advanced: Effective Sample Size and Bisection"
+!!! info "Advanced: Effective Sample Size, Bisection, and Convergence"
     
-    **Effective Sample Size**: ESS = 1/Σw_i^2. Maximum N (all equal), minimum 1 (one dominates).
+    **Effective Sample Size**: ESS = 1/Σw_i². Maximum N (all equal), minimum 1 (one dominates).
     
-    **Bisection Algorithm**: Guarantees O(log tolerance) convergence. Adaptive boosting increases target ESS near posterior via sigmoid curve, allocating particles where most valuable.
+    **Bisection Algorithm**: Guarantees O(log tolerance) convergence. The bisection uses combined relative + absolute tolerances:
+    
+    - **Metric convergence**: |metric - target| < max(ESS_TOLERANCE × |target|, METRIC_ATOL) in ESS mode, or max(ESS_TOLERANCE × |target|, METRIC_ATOL_CV) in dynamic mode. The separate `METRIC_ATOL_CV` floor is smaller because CV targets are orders of magnitude smaller than typical ESS targets.
+    - **Beta interval convergence**: β_max - β_min < max(BETA_RTOL × scale, BETA_TOLERANCE × scale), where scale = max(|β_min|, |β_max|). This scales the tolerance by bracket magnitude so early low-β steps converge appropriately.
+    - **Iteration limit**: A hard cap of 200 iterations prevents runaway bisection loops.
 
 ---
 
@@ -282,6 +299,8 @@ return samples, log_evidence
     **Student-t Fitting**: Each component uses multivariate Student-t: p(θ|μ,Σ,ν) for heavy tails. Degrees of freedom ν fit via maximum likelihood.
     
     **Mode Statistics Structure**: Contains n_modes, means[K,d], covariances[K,d,d], weights[K], dfs[K], assignments[N]. Enables per-cluster MCMC with adaptive step sizes.
+    
+    **Singular Covariance Regularization**: When resampled particles are degenerate (e.g., all duplicates in a small cluster, or fewer data points than dimensions), the covariance matrix may not be positive definite, causing `LinAlgError`. Both `fit_mvstud` (EM algorithm) and the `ModeStatistics` constructor automatically add diagonal regularization (floor value 1e-6, scaled by the covariance trace) when Cholesky decomposition or inversion fails, ensuring the algorithm continues gracefully.
 
 ---
 
@@ -481,7 +500,7 @@ return samples, log_evidence
 ### Progress Bar Breakdown
 
 ```
-Iter: 50 [beta=0.85, ESS=512, logZ=-15.3, logL=-12.1, acc=0.42, steps=10, eff=0.85, K=3]
+Iter: 50 [beta=0.85, ESS=512, logZ=-15.3, logL=-12.1, acc=0.42, steps=10, eff=0.85, K=3, CV=0.05]
 ```
 
 | Indicator | Healthy Range | What It Means |
@@ -494,6 +513,7 @@ Iter: 50 [beta=0.85, ESS=512, logZ=-15.3, logL=-12.1, acc=0.42, steps=10, eff=0.
 | steps | d-10×d okay | MCMC steps taken |
 | eff | >0.1 healthy | MCMC efficiency |
 | K | ≥1 healthy | Number of clusters |
+| CV | Decreasing toward 0 | Coefficient of variation of volume (lower = more uniform coverage) |
 
 **Healthy sampling**: Smooth β progression, ESS tracking target, logZ converging, acc>0.15, eff>0.1, K reflects modes
 

@@ -25,6 +25,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matrix is not positive definite, using a floor value (`1e-6`) to handle
   cases where the covariance trace is zero or near-zero.
 
+### Added
+- **`sampler.cv` property**: Exposes the current volume variation (coefficient of
+  variation of sqrt(det(Cov))) as a public property on the `Sampler` class.
+- **CV in progress bar**: The progress bar now shows `CV` (volume variation)
+  alongside existing diagnostics (beta, ESS, logZ, etc.).
+- **Dynamic reweighting mode documentation**: Documented `volume_variation`
+  parameter and the dynamic reweighting mode (ESS + CV-constrained beta
+  advancement) in the user guide and algorithm documentation.
+- **Reweighting tolerance constants documentation**: Documented `BETA_RTOL`,
+  `METRIC_ATOL`, `METRIC_ATOL_CV` and the bisection convergence criteria in
+  the advanced features guide and algorithm documentation.
+- **Covariance regularization documentation**: Documented the automatic
+  diagonal regularization for singular covariance matrices in the algorithm
+  documentation.
+
+### Changed
+- **Lint cleanup**: Fixed F841 (unused variable), E203 (whitespace before colon),
+  and W291/W293 (trailing/blank-line whitespace) in test files.
+
 ## [0.2.0] - 2026-02-25
 
 ### Changed (Breaking)

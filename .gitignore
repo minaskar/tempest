@@ -24,7 +24,7 @@ tests/__pycache__/
 .venv/
 .ruff_cache/
 AGENTS.md
-.opencode/site/
+.opencode/
 site/
 dist/
 examples/

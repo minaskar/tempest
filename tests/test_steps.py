@@ -187,7 +187,7 @@ class ReweighterTestCase(unittest.TestCase):
         high_dim_state.set_current("iter", 3)
         high_dim_state.set_current("beta", 0.0)
 
-        weights = reweighter.run()
+        reweighter.run()
         beta = high_dim_state.get_current("beta")
         ess = high_dim_state.get_current("ess")
         target = 0.5 * n_particles  # 16

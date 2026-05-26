@@ -209,6 +209,7 @@ The progress bar shows key diagnostics:
 - `steps`: MCMC steps per iteration
 - `eff`: MCMC efficiency
 - `K`: Number of clusters
+- `CV`: Coefficient of variation of volume (lower = more uniform coverage)
 
 ### Common Issues
 
@@ -218,3 +219,27 @@ The progress bar shows key diagnostics:
 | Beta stuck near 0 | Poor prior/likelihood ratio | Check prior bounds |
 | Low acceptance | Poor proposal | Enable clustering, check boundaries |
 | K=1 always | Unimodal or clustering disabled | Normal for simple problems |
+| High CV | Particles concentrated in small region | Increase `n_particles` or use `volume_variation` to constrain |
+| LinAlgError in clustering | Degenerate/singular covariance | Handled automatically with regularization; if persistent, increase `n_particles` |
+
+---
+
+## Reweighting Tolerance Constants
+
+The bisection algorithm in the reweighting step uses several internal tolerance constants that control convergence precision. These are defined in `tempest/config.py` and passed to the `Reweighter` internally.
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `BETA_TOLERANCE` | 1e-4 | Absolute tolerance on beta interval width |
+| `BETA_RTOL` | 1e-8 | Relative tolerance on beta interval width |
+| `ESS_TOLERANCE` | 0.01 | Relative tolerance on metric target |
+| `METRIC_ATOL` | 0.5 | Absolute tolerance floor for metric convergence in ESS mode |
+| `METRIC_ATOL_CV` | 0.01 | Absolute tolerance floor for metric convergence in dynamic (CV) mode |
+
+**How they interact**:
+
+- **Metric convergence**: The bisection converges when |metric - target| < max(ESS_TOLERANCE × |target|, METRIC_ATOL). For ESS mode, `METRIC_ATOL` (0.5) prevents excessive precision for typical ESS targets (e.g., 512). For dynamic mode, `METRIC_ATOL_CV` (0.01) provides a tighter floor appropriate for small CV targets.
+- **Beta interval convergence**: Converges when β_max - β_min < max(BETA_RTOL × scale, BETA_TOLERANCE × scale), where scale is the bracket magnitude. This ensures appropriate precision at both low and high β values.
+- **Iteration limit**: A hard cap of 200 iterations prevents runaway loops.
+
+These constants are internal and not directly configurable via the `Sampler` API. If you need finer control, you can modify them in `tempest/config.py`.

@@ -36,6 +36,7 @@ sampler = tp.Sampler(
 |-----------|---------|-------------|
 | `n_particles` | 2*n_dim | Number of particles per iteration |
 | `ess_ratio` | 2.0 | Target ESS ratio - ESS target is ess_ratio * n_particles |
+| `volume_variation` | None | Target coefficient of variation for volume. None (default) uses ESS-only mode; set to a float (e.g. 0.25) to enable dynamic mode where beta advancement is constrained by both ESS and volume variation |
 | `vectorize` | False | Whether likelihood accepts batched inputs |
 | `pool` | None | Process pool for parallelization |
 

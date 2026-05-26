@@ -70,6 +70,15 @@ sampler = tp.Sampler(
 | `pool` | Pool/int | None | Parallelization pool |
 | `clustering` | bool | True | Enable hierarchical clustering |
 
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `beta` | float | Current inverse temperature |
+| `logz` | float | Current log evidence estimate |
+| `ess` | float | Current effective sample size |
+| `cv` | Optional[float] | Current volume variation (coefficient of variation of sqrt(det(Cov))). `None` if not yet computed. |
+
 ### Running the Sampler
 
 ```python
