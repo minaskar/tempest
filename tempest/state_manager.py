@@ -415,7 +415,47 @@ class StateManager:
                     self._history[current_key].append(self._ensure_copy(value))
         self._invalidate_cache()
 
-    def compute_logw_and_logz(self, beta_final: float = 1.0, normalize: bool = True):
+    def precompute_logw_cache(self):
+        """Precompute the history-dependent part of log-weight calculation.
+
+        The expensive O(N × T) outer product and logaddexp reduction over
+        iterations does not depend on ``beta_final``.  This method computes
+        it once so that subsequent calls to :meth:`compute_logw_and_logz`
+        with the ``_cache`` argument only need O(N) work per beta value.
+
+        Callers should recompute the cache whenever the history changes
+        (i.e. once per reweighting iteration before the bisection search).
+
+        Returns
+        -------
+        cache : tuple of (numpy.ndarray, numpy.ndarray) or None
+            ``(logl_all, B)`` where ``logl_all`` has shape ``(N,)`` and
+            ``B`` has shape ``(N,)``, or ``None`` if the history is empty.
+        """
+        beta = np.asarray(self.get_history("beta"))
+
+        if beta.size == 0:
+            return None
+
+        logz_iter = np.asarray(self.get_history("logz"))
+        logl_all = self.get_history("logl", flat=True)
+
+        logl_per_iter = self._history.get("logl")
+        n_per_iter = np.array([len(logl_per_iter[t]) for t in range(len(beta))])
+        N_total = n_per_iter.sum()
+
+        b = logl_all[:, None] * beta[None, :] - logz_iter[None, :]
+
+        log_mixture_weights = np.log(n_per_iter) - np.log(N_total)
+        b_weighted = b + log_mixture_weights[None, :]
+
+        B = np.logaddexp.reduce(b_weighted, axis=1)
+
+        return (logl_all, B)
+
+    def compute_logw_and_logz(
+        self, beta_final: float = 1.0, normalize: bool = True, _cache=None
+    ):
         """
         Compute importance log-weights for all collected samples.
 
@@ -440,6 +480,10 @@ class StateManager:
             Target inverse temperature. Defaults to 1.0 (posterior).
         normalize : bool, optional
             If True, return log-weights normalized to sum to 1 in linear space.
+        _cache : tuple, optional
+            Precomputed ``(logl_all, B)`` from :meth:`precompute_logw_cache`.
+            When provided, skips the expensive O(N × T) outer product and
+            only computes the O(N) ``beta_final``-dependent part.
 
         Returns
         -------
@@ -449,6 +493,17 @@ class StateManager:
             Log-evidence estimate for the target at ``beta_final`` based on
             the (unnormalized) log-weights.
         """
+        if _cache is not None:
+            logl_all, B = _cache
+            if logl_all.size == 0:
+                return np.array([]), -np.inf
+            A = logl_all * beta_final
+            logw = A - B
+            logz_new = np.logaddexp.reduce(logw) - np.log(logw.size)
+            if normalize and logw.size:
+                logw = logw - np.logaddexp.reduce(logw)
+            return logw, logz_new
+
         beta = np.asarray(self.get_history("beta"))
 
         if beta.size == 0:

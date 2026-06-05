@@ -85,13 +85,22 @@ class Reweighter:
         self.METRIC_ATOL = METRIC_ATOL
         self.METRIC_ATOL_CV = METRIC_ATOL_CV
 
-    def _compute_metric_and_weights(self, beta: float) -> tuple:
+    def _compute_metric_and_weights(
+        self, beta: float, _cache=None, u_cached=None
+    ) -> tuple:
         """Compute weights, ESS, and metric value for a given beta.
 
         Parameters
         ----------
         beta : float
             Inverse temperature value.
+        _cache : tuple, optional
+            Precomputed ``(logl_all, B)`` from
+            :meth:`StateManager.precompute_logw_cache`.  When provided,
+            ``compute_logw_and_logz`` uses O(N) instead of O(N*T) work.
+        u_cached : np.ndarray, optional
+            Pre-fetched "u" history array to avoid repeated
+            ``get_history`` + concatenation overhead.
 
         Returns
         -------
@@ -102,13 +111,17 @@ class Reweighter:
         metric_val : float
             Metric value (ESS or volume_variation depending on self.metric).
         """
-        logw, _ = self.state.compute_logw_and_logz(beta)
+        logw, _ = self.state.compute_logw_and_logz(beta, _cache=_cache)
         weights = np.exp(logw - np.max(logw))
         ess_est = effective_sample_size(weights)
 
         if self.volume_variation is not None:
             # dynamic mode - compute volume variation metric
-            u = self.state.get_history("u", flat=True)
+            u = (
+                u_cached
+                if u_cached is not None
+                else self.state.get_history("u", flat=True)
+            )
             weights_norm = weights / np.sum(weights)
             metric_val = volume_variation(u, weights_norm)
         else:
@@ -226,6 +239,7 @@ class Reweighter:
         self,
         beta_current: float,
         ess_target: float,
+        _logw_cache=None,
     ) -> tuple:
         """Find bracket [beta_low, beta_high] where ESS crosses the target.
 
@@ -239,6 +253,9 @@ class Reweighter:
             Current beta value (lower bound for search).
         ess_target : float
             Target ESS value.
+        _logw_cache : tuple, optional
+            Precomputed ``(logl_all, B)`` from
+            :meth:`StateManager.precompute_logw_cache`.
 
         Returns
         -------
@@ -261,12 +278,14 @@ class Reweighter:
         # such a tiny step is wasteful (the MCMC move would be equivalent
         # to prior sampling).  Using <= instead of < ensures we stay and
         # accumulate more particles when ESS exactly equals the target.
-        _, ess_at_current, _ = self._compute_metric_and_weights(beta_current)
+        _, ess_at_current, _ = self._compute_metric_and_weights(
+            beta_current, _cache=_logw_cache
+        )
         if ess_at_current <= ess_target:
             return beta_current, beta_current  # Can't advance, stay at current beta
 
         # Check if ESS >= target throughout [beta_current, 1.0]
-        _, ess_at_one, _ = self._compute_metric_and_weights(1.0)
+        _, ess_at_one, _ = self._compute_metric_and_weights(1.0, _cache=_logw_cache)
         if ess_at_one >= ess_target:
             return 1.0, 1.0  # Valid throughout, can go all the way to 1.0
 
@@ -285,7 +304,9 @@ class Reweighter:
                 self.BETA_TOLERANCE * bracket_scale,
             ):
                 break
-            _, ess_mid, _ = self._compute_metric_and_weights(beta_mid)
+            _, ess_mid, _ = self._compute_metric_and_weights(
+                beta_mid, _cache=_logw_cache
+            )
 
             if ess_mid >= ess_target:
                 # ESS still sufficient, can try higher beta
@@ -384,24 +405,40 @@ class Reweighter:
 
         beta_prev = self.state.get_current("beta")
 
+        # Precompute the O(N × T) part of log-weight calculation once.
+        # Only beta_final changes across bisection steps, so the
+        # history-dependent outer product and reduction can be reused.
+        _logw_cache = self.state.precompute_logw_cache()
+
+        # Cache the u history array once to avoid repeated
+        # get_history + concatenation overhead in both modes
+        # (CV is computed at the end regardless of mode).
+        u_cached = self.state.get_history("u", flat=True)
+
         # Step 1: Find bracket where ESS crosses the target
         # Returns (beta_low, beta_high) where ESS(beta_low) >= target and
         # ESS(beta_high) < target. If both equal, no crossing exists.
         ess_target = self.ess_ratio * self.n_particles
-        beta_low, beta_high = self._find_ess_bracket(beta_prev, ess_target)
+        beta_low, beta_high = self._find_ess_bracket(
+            beta_prev, ess_target, _logw_cache=_logw_cache
+        )
 
         if self.volume_variation is None:
             # For ESS mode: find beta where ESS = ess_ratio * n_particles
 
             def ess_fn(beta):
-                weights, ess_est, _ = self._compute_metric_and_weights(beta)
+                weights, ess_est, _ = self._compute_metric_and_weights(
+                    beta, _cache=_logw_cache
+                )
                 return ess_est, (weights, ess_est)
 
             if beta_low == beta_high:
                 # No crossing exists: either can't advance (ESS < target at
                 # beta_prev) or ESS >= target all the way to 1.0
                 beta = beta_low
-                weights, ess_est, _ = self._compute_metric_and_weights(beta)
+                weights, ess_est, _ = self._compute_metric_and_weights(
+                    beta, _cache=_logw_cache
+                )
             else:
                 # Crossing exists: bisect in [beta_prev, beta_high] to find
                 # where ESS = target. ESS(beta_prev) >= target (guaranteed
@@ -414,11 +451,10 @@ class Reweighter:
                 )
 
             # Compute volume variation at determined beta
-            u = self.state.get_history("u", flat=True)
             weights_norm = weights / np.sum(weights)
-            cv = volume_variation(u, weights_norm)
+            cv = volume_variation(u_cached, weights_norm)
 
-            _, logz = self.state.compute_logw_and_logz(beta)
+            _, logz = self.state.compute_logw_and_logz(beta, _cache=_logw_cache)
             if self.pbar is not None:
                 self.pbar.update_stats(
                     dict(beta=beta, ESS=int(ess_est), logZ=logz, CV=cv)
@@ -432,7 +468,9 @@ class Reweighter:
             if beta_low == beta_high:
                 # No crossing: stay at current beta or go to 1.0
                 beta = beta_low
-                weights, ess_est, _ = self._compute_metric_and_weights(beta)
+                weights, ess_est, _ = self._compute_metric_and_weights(
+                    beta, _cache=_logw_cache, u_cached=u_cached
+                )
             else:
                 # Compute volume_variation at boundaries of the ESS bracket
                 # [beta_low, beta_high] brackets the ESS = target crossing.
@@ -440,10 +478,10 @@ class Reweighter:
                 # consistent with ESS mode which also bisects in
                 # [beta_prev, beta_high].
                 _, ess_at_prev, vol_var_prev = self._compute_metric_and_weights(
-                    beta_prev
+                    beta_prev, _cache=_logw_cache, u_cached=u_cached
                 )
                 _, ess_at_high, vol_var_high = self._compute_metric_and_weights(
-                    beta_high
+                    beta_high, _cache=_logw_cache, u_cached=u_cached
                 )
 
                 # Determine beta based on volume_variation at boundaries
@@ -467,7 +505,7 @@ class Reweighter:
                     # Search within [beta_prev, beta_high]
                     def volume_variation_fn(beta):
                         weights, ess_est, metric_val = self._compute_metric_and_weights(
-                            beta
+                            beta, _cache=_logw_cache, u_cached=u_cached
                         )
                         return metric_val, (weights, ess_est)
 
@@ -479,14 +517,15 @@ class Reweighter:
                     )
 
                 if weights is None:
-                    weights, ess_est, _ = self._compute_metric_and_weights(beta)
+                    weights, ess_est, _ = self._compute_metric_and_weights(
+                        beta, _cache=_logw_cache, u_cached=u_cached
+                    )
 
             # Compute volume variation at determined beta
-            u = self.state.get_history("u", flat=True)
             weights_norm = weights / np.sum(weights)
-            cv = volume_variation(u, weights_norm)
+            cv = volume_variation(u_cached, weights_norm)
 
-            _, logz = self.state.compute_logw_and_logz(beta)
+            _, logz = self.state.compute_logw_and_logz(beta, _cache=_logw_cache)
 
             if self.pbar is not None:
                 self.pbar.update_stats(
