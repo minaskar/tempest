@@ -102,6 +102,8 @@ class Mutator:
             u = np.random.rand(self.n_particles, self.n_dim)
             x = np.array([self.prior_transform(u[i]) for i in range(self.n_particles)])
             logl, blobs = self.log_likelihood(x)
+            if blobs is not None:
+                self.have_blobs = True
             assignments = np.zeros(self.n_particles, dtype=int)
             calls = self.state.get_current("calls") + self.n_particles
 

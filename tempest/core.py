@@ -176,6 +176,8 @@ class SamplerCore:
         self.resampler.run(weights)
         self.mutator.run(mode_stats)
 
+        self.resampler.have_blobs = self.mutator.have_blobs
+
         # Update progress bar
         self._update_progress_bar()
 
@@ -202,7 +204,7 @@ class SamplerCore:
         x = self.state.get_history("x", flat=True)
         logl = self.state.get_history("logl", flat=True)
 
-        if self.config.blobs_dtype is not None:
+        if self.mutator.have_blobs:
             blobs = self.state.get_history("blobs", flat=True)
         else:
             blobs = None
@@ -261,18 +263,33 @@ class SamplerCore:
         d["n_total"] = getattr(self, "n_total", None)
         d["logz_err"] = getattr(self, "logz_err", None)
 
+        # Snapshot the full sampler object too, but strip everything
+        # unpicklable first:
+        #  - pbar: tqdm's notebook widget (progress=True in Jupyter) holds
+        #    an unpicklable object tied to the kernel session. It's mirrored
+        #    onto self, reweighter, trainer, and mutator (run_sampling
+        #    assigns the same object to all four), so all of them must be
+        #    cleared or the pickler will still reach it through those
+        #    sub-components.
+        #  - pool: a multiprocessing.Pool (or similar) generally can't be
+        #    pickled either.
+        pbar_holders = [self, self.reweighter, self.trainer, self.mutator]
+        pbar_backups = [obj.pbar for obj in pbar_holders]
+        for obj in pbar_holders:
+            obj.pbar = None
+
+        pool_backup = self.config.pool
+        object.__setattr__(self.config, "pool", None)
+
         try:
-            # Remove pool-related attributes that can't be pickled
-            if hasattr(self.config, "pool") and self.config.pool is not None:
-                pool_state = self.config.pool
-                self.config.pool = None
-                d["sampler"] = dill.dumps(self)
-                self.config.pool = pool_state
-            else:
-                d["sampler"] = dill.dumps(self)
+            d["sampler"] = dill.dumps(self)
         except Exception as e:
-            print(f"Error while saving state: {e}")
-            raise
+            print(f"Error while saving sampler snapshot: {e}")
+            d["sampler"] = None
+        finally:
+            for obj, backup in zip(pbar_holders, pbar_backups):
+                obj.pbar = backup
+            object.__setattr__(self.config, "pool", pool_backup)
 
         # Save to file
         with open(path, "wb") as f:
@@ -286,7 +303,7 @@ class SamplerCore:
             d = dill.load(f)
 
         # Restore state manager
-        self.state.from_dict(d)
+        self.state.update_from_dict(d)
 
         # Ensure all required keys exist with valid types (backward compatibility)
         # Some older state files may be missing certain keys
@@ -383,6 +400,9 @@ class SamplerCore:
     def _initialize_from_resume(self, resume_state_path):
         """Initialize from resume (replaces part of Sampler.run)."""
         self.load_sampler_state(resume_state_path)
+        have_blobs = self.state.get_current("blobs") is not None
+        self.mutator.have_blobs = have_blobs
+        self.resampler.have_blobs = have_blobs
         t0 = (
             int(self.state.get_current("iter"))
             if self.state.get_current("iter") is not None
